@@ -10,6 +10,7 @@ lrlex = "0.13"
 lrpar = "0.13"
 
 [dependencies]
+anyhow = { version = "1.0.82", features = ["backtrace"] }
 cfgrammar = "0.13"
 lrlex = "0.13"
 lrpar = "0.13"
