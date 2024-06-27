@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.82", features = ["backtrace"] }
 chumsky = "0.9.3"
+yaml-rust = "0.4.5"
