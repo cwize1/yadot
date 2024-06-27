@@ -1,35 +1,69 @@
 use anyhow::{Error, anyhow};
-use lrlex::lrlex_mod;
-use lrpar::lrpar_mod;
-
-lrlex_mod!("exprlang/exprlang.l");
-lrpar_mod!("exprlang/exprlang.y");
+use chumsky::prelude::*;
 
 fn main() {
-    let err = process_yaml_template("hello: ${{ \"world\" }}");
-    if let Err(err) = err {
+    let out_res = process_yaml_template("hello: ${{ \"world\" }}");
+    if let Err(err) = out_res {
         eprintln!("yadot failed: {err:?}");
+        return;
     }
+    let out = out_res.unwrap();
+    println!("{out}");
 }
 
-fn process_yaml_template(input: &str) -> Result<(), Error> {
-
-
-
-    Ok(())
+fn process_yaml_template(input: &str) -> Result<String, Error> {
+    Ok("".to_string())
 }
 
-fn parse_template_expression(expr_str: &str) -> Result<&str, Error> {
-    let lexerdef = exprlang_l::lexerdef();
-    let lexer = lexerdef.lexer(expr_str);
-    let (res, errs) = exprlang_y::parse(&lexer);
-    if errs.len() > 0 {
-        for e in &errs {
-            eprintln!("{}", e.pp(&lexer, &exprlang_y::token_epp));
+fn parse_template_expression(expr_str: &str) -> Result<String, Error> {
+    let parser = gen_template_expression_parser();
+    let expr_res = parser.parse(expr_str);
+    if let Err(errs) = expr_res {
+        for err in &errs {
+            println!("Parse error: {}", err)
         }
         return Err(anyhow!("expression parse errors (count={})", errs.len()))
     }
-    let res = res.unwrap();
-    let res = res.unwrap();
-    Ok(res)
+    let expr = expr_res.unwrap();
+    Ok(expr)
+}
+
+fn gen_template_expression_parser() -> impl Parser<char, String, Error = Simple<char>> {
+    let escape = just('\\').ignore_then(
+        just('\\')
+            .or(just('/'))
+            .or(just('"'))
+            .or(just('b').to('\x08'))
+            .or(just('f').to('\x0C'))
+            .or(just('n').to('\n'))
+            .or(just('r').to('\r'))
+            .or(just('t').to('\t'))
+            .or(just('u').ignore_then(
+                filter(|c: &char| c.is_digit(16))
+                    .repeated()
+                    .exactly(4)
+                    .collect::<String>()
+                    .validate(|digits, span, emit| {
+                        char::from_u32(u32::from_str_radix(&digits, 16).unwrap())
+                            .unwrap_or_else(|| {
+                                emit(Simple::custom(span, "invalid unicode character"));
+                                '\u{FFFD}' // unicode replacement character
+                            })
+                    }),
+            )),
+    );
+
+    let string = just('"')
+        .ignore_then(filter(|c| *c != '\\' && *c != '"').or(escape).repeated())
+        .then_ignore(just('"'))
+        .collect::<String>()
+        .labelled("string");
+
+    let expr = string;
+
+    let templ_expr = just("${{")
+        .ignore_then(expr)
+        .then_ignore(just("}}"));
+
+    templ_expr
 }
