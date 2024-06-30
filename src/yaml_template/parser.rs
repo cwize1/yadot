@@ -3,7 +3,9 @@ use std::str::Chars;
 use anyhow::Error;
 use yaml_rust::{parser::Parser, Event};
 
-use super::ast::{DocumentTemplate, FileTemplate, MapTemplate, NodeTemplate, ScalerTemplate, SequenceTemplate};
+use crate::yaml_template::ast::MapEntryTemplate;
+
+use super::ast::{DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalerTemplate, SequenceTemplate};
 
 pub fn parse_yaml_template(input: &str) -> Result<FileTemplate, Error> {
     let yaml_parser = &mut Parser::new(input.chars());
@@ -86,7 +88,7 @@ fn parse_sequence(yaml_parser: &mut Parser<Chars>) -> Result<SequenceTemplate, E
     loop {
         let (event, _) = yaml_parser.peek()?;
         match event {
-            Event::DocumentStart => {
+            Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
                 let node = parse_node(yaml_parser)?;
                 nodes.push(node);
             },
@@ -107,9 +109,58 @@ fn parse_sequence(yaml_parser: &mut Parser<Chars>) -> Result<SequenceTemplate, E
 }
 
 fn parse_mapping(yaml_parser: &mut Parser<Chars>) -> Result<MapTemplate, Error> {
-    todo!()
+    // Parse MappingStart.
+    let (map_start, _) = yaml_parser.next()?;
+    assert!(matches!(map_start, Event::MappingStart(..)));
+
+    // Parse entries.
+    let mut entries = Vec::new();
+    loop {
+        let (event, _) = yaml_parser.peek()?;
+        let key = match event {
+            Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                parse_node(yaml_parser)?
+            },
+            Event::MappingEnd => break,
+            _ => unreachable!(),
+        };
+
+        let (event, _) = yaml_parser.peek()?;
+        let value = match event {
+            Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                parse_node(yaml_parser)?
+            },
+            _ => unreachable!(),
+        };
+
+        let entry = MapEntryTemplate{
+            key,
+            value,
+        };
+        entries.push(entry);
+    }
+
+    // Parse MappingEnd.
+    let (seq_end, _) = yaml_parser.next()?;
+    assert_eq!(seq_end, Event::MappingEnd);
+
+    // Return result.
+    let map = MapTemplate{
+        entries,
+    };
+    Ok(map)
 }
 
 fn parse_scaler(yaml_parser: &mut Parser<Chars>) -> Result<ScalerTemplate, Error> {
-    todo!()
+    // Parse Scalar.
+    let (scalar, _) = yaml_parser.next()?;
+    let Event::Scalar(value, _, _, _) = scalar else { unreachable!() };
+
+    let expr = Expr::String(ExprString{
+        value,
+    });
+    let scalar = ScalerTemplate{
+        exprs: vec![expr],
+    };
+    Ok(scalar)
 }

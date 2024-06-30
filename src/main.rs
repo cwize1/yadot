@@ -10,11 +10,10 @@ fn main() {
         eprintln!("yadot failed: {err:?}");
         return;
     }
-    let out = out_res.unwrap();
-    println!("{out}");
 }
 
-fn process_yaml_template(input: &str) -> Result<String, Error> {
+fn process_yaml_template(input: &str) -> Result<(), Error> {
     let template = parse_yaml_template(input)?;
-    todo!();
+    println!("{:#?}", template);
+    Ok(())
 }
