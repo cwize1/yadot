@@ -17,18 +17,16 @@ pub struct Parser {
 impl Parser {
     pub fn new() -> Parser {
         let expr_parser = TemplateExprParser::new();
-        Parser {
-            expr_parser,
-        }
+        Parser { expr_parser }
     }
 
     pub fn parse(&self, input: &str) -> Result<FileTemplate, Error> {
         let yaml_parser = &mut YamlParser::new(input.chars());
-    
+
         // Parse StreamStart.
         let (evt_strm_start, _) = yaml_parser.next()?;
         assert_eq!(evt_strm_start, Event::StreamStart);
-    
+
         // Parse docs.
         let mut docs = Vec::new();
         loop {
@@ -42,33 +40,36 @@ impl Parser {
                 _ => unreachable!(),
             }
         }
-    
+
         // Parse StreamEnd.
         let (evt_strm_end, _) = yaml_parser.next()?;
         assert_eq!(evt_strm_end, Event::StreamEnd);
-    
+
         // Return result.
         let file = FileTemplate { docs: docs };
         Ok(file)
     }
-    
-    fn parse_yaml_doc(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<DocumentTemplate, Error> {
+
+    fn parse_yaml_doc(
+        &self,
+        yaml_parser: &mut YamlParser<Chars>,
+    ) -> Result<DocumentTemplate, Error> {
         // Parse DocumentStart.
         let (doc_start, _) = yaml_parser.next()?;
         assert_eq!(doc_start, Event::DocumentStart);
-    
+
         // Parse node.
         let node = self.parse_node(yaml_parser)?;
-    
+
         // Parse DocumentEnd.
         let (doc_start, _) = yaml_parser.next()?;
         assert_eq!(doc_start, Event::DocumentEnd);
-    
+
         // Return result.
         let doc = DocumentTemplate { node };
         Ok(doc)
     }
-    
+
     fn parse_node(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<NodeTemplate, Error> {
         let (event, _) = yaml_parser.peek()?;
         match event {
@@ -88,12 +89,15 @@ impl Parser {
             _ => unreachable!(),
         }
     }
-    
-    fn parse_sequence(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<SequenceTemplate, Error> {
+
+    fn parse_sequence(
+        &self,
+        yaml_parser: &mut YamlParser<Chars>,
+    ) -> Result<SequenceTemplate, Error> {
         // Parse SequenceStart.
         let (seq_start, _) = yaml_parser.next()?;
         assert!(matches!(seq_start, Event::SequenceStart(..)));
-    
+
         // Parse nodes.
         let mut nodes = Vec::new();
         loop {
@@ -110,21 +114,21 @@ impl Parser {
                 _ => unreachable!(),
             }
         }
-    
+
         // Parse SequenceEnd.
         let (seq_end, _) = yaml_parser.next()?;
         assert_eq!(seq_end, Event::SequenceEnd);
-    
+
         // Return result.
         let seq = SequenceTemplate { nodes };
         Ok(seq)
     }
-    
+
     fn parse_mapping(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<MapTemplate, Error> {
         // Parse MappingStart.
         let (map_start, _) = yaml_parser.next()?;
         assert!(matches!(map_start, Event::MappingStart(..)));
-    
+
         // Parse entries.
         let mut entries = Vec::new();
         loop {
@@ -137,7 +141,7 @@ impl Parser {
                 Event::MappingEnd => break,
                 _ => unreachable!(),
             };
-    
+
             let (event, _) = yaml_parser.peek()?;
             let value = match event {
                 Event::SequenceStart(_)
@@ -146,27 +150,27 @@ impl Parser {
                 | Event::Alias(_) => self.parse_node(yaml_parser)?,
                 _ => unreachable!(),
             };
-    
+
             let entry = MapEntryTemplate { key, value };
             entries.push(entry);
         }
-    
+
         // Parse MappingEnd.
         let (seq_end, _) = yaml_parser.next()?;
         assert_eq!(seq_end, Event::MappingEnd);
-    
+
         // Return result.
         let map = MapTemplate { entries };
         Ok(map)
     }
-    
+
     fn parse_scaler(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<ScalerTemplate, Error> {
         // Parse Scalar.
         let (scalar, _) = yaml_parser.next()?;
         let Event::Scalar(value, _, _, _) = scalar else {
             unreachable!()
         };
-    
+
         let mut curr_index = 0;
         let mut exprs = Vec::new();
         loop {
@@ -174,7 +178,7 @@ impl Parser {
             let Some(template_expr_index) = template_expr_index else {
                 break;
             };
-    
+
             // Add non-template string characters.
             if template_expr_index > curr_index {
                 let non_template_str = value[curr_index..template_expr_index].to_string();
@@ -183,15 +187,15 @@ impl Parser {
                 });
                 exprs.push(non_template_expr);
             }
-    
+
             // Add template string expression.
             let expr_str = &value[template_expr_index..];
             let (expr, end) = self.expr_parser.parse(expr_str)?;
             exprs.push(expr);
-    
+
             curr_index = template_expr_index + end;
         }
-    
+
         // Add non-template string characters.
         if value.len() > curr_index {
             let non_template_str = value[curr_index..].to_string();
@@ -200,8 +204,8 @@ impl Parser {
             });
             exprs.push(non_template_expr);
         }
-    
+
         let scalar = ScalerTemplate { exprs };
         Ok(scalar)
-    }    
+    }
 }

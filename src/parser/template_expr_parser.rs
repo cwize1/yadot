@@ -5,14 +5,14 @@ use chumsky::prelude::*;
 
 use crate::ast::{Expr, ExprString};
 
-pub struct TemplateExprParser{
+pub struct TemplateExprParser {
     parser: Box<dyn Parser<char, (String, Range<usize>), Error = Simple<char>>>,
 }
 
-impl TemplateExprParser{
+impl TemplateExprParser {
     pub fn new() -> TemplateExprParser {
         let parser = gen_template_expression_parser();
-        TemplateExprParser{
+        TemplateExprParser {
             parser: Box::new(parser),
         }
     }
