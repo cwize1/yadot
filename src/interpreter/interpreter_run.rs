@@ -4,8 +4,8 @@ use anyhow::Error;
 use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
-    DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate,
-    ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
+    DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
+    SequenceTemplate,
 };
 
 pub struct InterpreterRun {}
@@ -86,10 +86,7 @@ impl InterpreterRun {
         }
     }
 
-    fn interpret_expr_string<'a>(
-        &mut self,
-        expr_string: &'a ExprString,
-    ) -> Result<Cow<'a, str>, Error> {
+    fn interpret_expr_string<'a>(&mut self, expr_string: &'a ExprString) -> Result<Cow<'a, str>, Error> {
         Ok(Cow::Borrowed(&expr_string.value))
     }
 }

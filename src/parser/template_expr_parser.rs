@@ -33,8 +33,7 @@ impl TemplateExprParser {
     }
 }
 
-fn gen_template_expression_parser() -> impl Parser<char, (Expr, Range<usize>), Error = Simple<char>>
-{
+fn gen_template_expression_parser() -> impl Parser<char, (Expr, Range<usize>), Error = Simple<char>> {
     let escape = just('\\').ignore_then(
         just('\\')
             .or(just('/'))
@@ -50,12 +49,10 @@ fn gen_template_expression_parser() -> impl Parser<char, (Expr, Range<usize>), E
                     .exactly(4)
                     .collect::<String>()
                     .validate(|digits, span, emit| {
-                        char::from_u32(u32::from_str_radix(&digits, 16).unwrap()).unwrap_or_else(
-                            || {
-                                emit(Simple::custom(span, "invalid unicode character"));
-                                '\u{FFFD}' // unicode replacement character
-                            },
-                        )
+                        char::from_u32(u32::from_str_radix(&digits, 16).unwrap()).unwrap_or_else(|| {
+                            emit(Simple::custom(span, "invalid unicode character"));
+                            '\u{FFFD}' // unicode replacement character
+                        })
                     }),
             )),
     );

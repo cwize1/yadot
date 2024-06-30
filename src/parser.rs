@@ -6,8 +6,8 @@ use anyhow::Error;
 use yaml_rust::{parser::Parser as YamlParser, Event};
 
 use crate::ast::{
-    DocumentTemplate, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate,
-    ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
+    DocumentTemplate, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
+    SequenceTemplate,
 };
 
 use template_expr_parser::TemplateExprParser;
@@ -52,10 +52,7 @@ impl Parser {
         Ok(file)
     }
 
-    fn parse_yaml_doc(
-        &self,
-        yaml_parser: &mut YamlParser<Chars>,
-    ) -> Result<DocumentTemplate, Error> {
+    fn parse_yaml_doc(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<DocumentTemplate, Error> {
         // Parse DocumentStart.
         let (doc_start, _) = yaml_parser.next()?;
         assert_eq!(doc_start, Event::DocumentStart);
@@ -92,10 +89,7 @@ impl Parser {
         }
     }
 
-    fn parse_sequence(
-        &self,
-        yaml_parser: &mut YamlParser<Chars>,
-    ) -> Result<SequenceTemplate, Error> {
+    fn parse_sequence(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<SequenceTemplate, Error> {
         // Parse SequenceStart.
         let (seq_start, _) = yaml_parser.next()?;
         assert!(matches!(seq_start, Event::SequenceStart(..)));
@@ -105,10 +99,7 @@ impl Parser {
         loop {
             let (event, _) = yaml_parser.peek()?;
             match event {
-                Event::SequenceStart(_)
-                | Event::MappingStart(_)
-                | Event::Scalar(_, _, _, _)
-                | Event::Alias(_) => {
+                Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
                     let value = self.parse_node(yaml_parser)?;
                     values.push(value);
                 }
@@ -136,20 +127,18 @@ impl Parser {
         loop {
             let (event, _) = yaml_parser.peek()?;
             let key = match event {
-                Event::SequenceStart(_)
-                | Event::MappingStart(_)
-                | Event::Scalar(_, _, _, _)
-                | Event::Alias(_) => self.parse_node(yaml_parser)?,
+                Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                    self.parse_node(yaml_parser)?
+                }
                 Event::MappingEnd => break,
                 _ => unreachable!(),
             };
 
             let (event, _) = yaml_parser.peek()?;
             let value = match event {
-                Event::SequenceStart(_)
-                | Event::MappingStart(_)
-                | Event::Scalar(_, _, _, _)
-                | Event::Alias(_) => self.parse_node(yaml_parser)?,
+                Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                    self.parse_node(yaml_parser)?
+                }
                 _ => unreachable!(),
             };
 
