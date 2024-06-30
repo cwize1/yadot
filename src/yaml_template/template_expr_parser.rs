@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use anyhow::{Error, anyhow};
+use anyhow::{anyhow, Error};
 use chumsky::prelude::*;
 
 use super::ast::{Expr, ExprString};
@@ -12,16 +12,15 @@ pub fn parse_template_expression(expr_str: &str) -> Result<(Expr, usize), Error>
         for err in &errs {
             println!("Parse error: {}", err)
         }
-        return Err(anyhow!("expression parse errors (count={})", errs.len()))
+        return Err(anyhow!("expression parse errors (count={})", errs.len()));
     }
     let (expr, span) = expr_res.unwrap();
-    let expr = Expr::String(ExprString{
-        value: expr,
-    });
+    let expr = Expr::String(ExprString { value: expr });
     Ok((expr, span.end()))
 }
 
-fn gen_template_expression_parser() -> impl Parser<char, (String, Range<usize>), Error = Simple<char>> {
+fn gen_template_expression_parser(
+) -> impl Parser<char, (String, Range<usize>), Error = Simple<char>> {
     let escape = just('\\').ignore_then(
         just('\\')
             .or(just('/'))
@@ -37,11 +36,12 @@ fn gen_template_expression_parser() -> impl Parser<char, (String, Range<usize>),
                     .exactly(4)
                     .collect::<String>()
                     .validate(|digits, span, emit| {
-                        char::from_u32(u32::from_str_radix(&digits, 16).unwrap())
-                            .unwrap_or_else(|| {
+                        char::from_u32(u32::from_str_radix(&digits, 16).unwrap()).unwrap_or_else(
+                            || {
                                 emit(Simple::custom(span, "invalid unicode character"));
                                 '\u{FFFD}' // unicode replacement character
-                            })
+                            },
+                        )
                     }),
             )),
     );
@@ -52,8 +52,7 @@ fn gen_template_expression_parser() -> impl Parser<char, (String, Range<usize>),
         .collect::<String>()
         .labelled("string");
 
-    let expr = string
-        .padded();
+    let expr = string.padded();
 
     let templ_expr = just("${{")
         .ignore_then(expr)

@@ -5,7 +5,13 @@ use yaml_rust::{parser::Parser, Event};
 
 use crate::yaml_template::ast::MapEntryTemplate;
 
-use super::{ast::{DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalerTemplate, SequenceTemplate}, template_expr_parser::parse_template_expression};
+use super::{
+    ast::{
+        DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate,
+        ScalerTemplate, SequenceTemplate,
+    },
+    template_expr_parser::parse_template_expression,
+};
 
 pub fn parse_yaml_template(input: &str) -> Result<FileTemplate, Error> {
     let yaml_parser = &mut Parser::new(input.chars());
@@ -22,7 +28,7 @@ pub fn parse_yaml_template(input: &str) -> Result<FileTemplate, Error> {
             Event::DocumentStart => {
                 let doc = parse_yaml_doc(yaml_parser)?;
                 docs.push(doc);
-            },
+            }
             Event::StreamEnd => break,
             _ => unreachable!(),
         }
@@ -33,9 +39,7 @@ pub fn parse_yaml_template(input: &str) -> Result<FileTemplate, Error> {
     assert_eq!(evt_strm_end, Event::StreamEnd);
 
     // Return result.
-    let file = FileTemplate {
-        docs: docs,
-    };
+    let file = FileTemplate { docs: docs };
     Ok(file)
 }
 
@@ -52,9 +56,7 @@ fn parse_yaml_doc(yaml_parser: &mut Parser<Chars>) -> Result<DocumentTemplate, E
     assert_eq!(doc_start, Event::DocumentEnd);
 
     // Return result.
-    let doc = DocumentTemplate{
-        node,
-    };
+    let doc = DocumentTemplate { node };
     Ok(doc)
 }
 
@@ -64,15 +66,15 @@ fn parse_node(yaml_parser: &mut Parser<Chars>) -> Result<NodeTemplate, Error> {
         Event::SequenceStart(_) => {
             let sequence = parse_sequence(yaml_parser)?;
             Ok(NodeTemplate::Sequence(sequence))
-        },
+        }
         Event::MappingStart(_) => {
             let map = parse_mapping(yaml_parser)?;
             Ok(NodeTemplate::Map(map))
-        },
+        }
         Event::Scalar(_, _, _, _) => {
             let scaler = parse_scaler(yaml_parser)?;
             Ok(NodeTemplate::Scaler(scaler))
-        },
+        }
         Event::Alias(_) => todo!(),
         _ => unreachable!(),
     }
@@ -88,10 +90,13 @@ fn parse_sequence(yaml_parser: &mut Parser<Chars>) -> Result<SequenceTemplate, E
     loop {
         let (event, _) = yaml_parser.peek()?;
         match event {
-            Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+            Event::SequenceStart(_)
+            | Event::MappingStart(_)
+            | Event::Scalar(_, _, _, _)
+            | Event::Alias(_) => {
                 let node = parse_node(yaml_parser)?;
                 nodes.push(node);
-            },
+            }
             Event::SequenceEnd => break,
             _ => unreachable!(),
         }
@@ -102,9 +107,7 @@ fn parse_sequence(yaml_parser: &mut Parser<Chars>) -> Result<SequenceTemplate, E
     assert_eq!(seq_end, Event::SequenceEnd);
 
     // Return result.
-    let seq = SequenceTemplate{
-        nodes,
-    };
+    let seq = SequenceTemplate { nodes };
     Ok(seq)
 }
 
@@ -118,25 +121,24 @@ fn parse_mapping(yaml_parser: &mut Parser<Chars>) -> Result<MapTemplate, Error> 
     loop {
         let (event, _) = yaml_parser.peek()?;
         let key = match event {
-            Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
-                parse_node(yaml_parser)?
-            },
+            Event::SequenceStart(_)
+            | Event::MappingStart(_)
+            | Event::Scalar(_, _, _, _)
+            | Event::Alias(_) => parse_node(yaml_parser)?,
             Event::MappingEnd => break,
             _ => unreachable!(),
         };
 
         let (event, _) = yaml_parser.peek()?;
         let value = match event {
-            Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
-                parse_node(yaml_parser)?
-            },
+            Event::SequenceStart(_)
+            | Event::MappingStart(_)
+            | Event::Scalar(_, _, _, _)
+            | Event::Alias(_) => parse_node(yaml_parser)?,
             _ => unreachable!(),
         };
 
-        let entry = MapEntryTemplate{
-            key,
-            value,
-        };
+        let entry = MapEntryTemplate { key, value };
         entries.push(entry);
     }
 
@@ -145,29 +147,29 @@ fn parse_mapping(yaml_parser: &mut Parser<Chars>) -> Result<MapTemplate, Error> 
     assert_eq!(seq_end, Event::MappingEnd);
 
     // Return result.
-    let map = MapTemplate{
-        entries,
-    };
+    let map = MapTemplate { entries };
     Ok(map)
 }
 
 fn parse_scaler(yaml_parser: &mut Parser<Chars>) -> Result<ScalerTemplate, Error> {
     // Parse Scalar.
     let (scalar, _) = yaml_parser.next()?;
-    let Event::Scalar(value, _, _, _) = scalar else { unreachable!() };
+    let Event::Scalar(value, _, _, _) = scalar else {
+        unreachable!()
+    };
 
     let mut curr_index = 0;
     let mut exprs = Vec::new();
     loop {
         let template_expr_index = value[curr_index..].find("${{");
         let Some(template_expr_index) = template_expr_index else {
-            break
+            break;
         };
 
         // Add non-template string characters.
         if template_expr_index > curr_index {
             let non_template_str = value[curr_index..template_expr_index].to_string();
-            let non_template_expr = Expr::String(ExprString{
+            let non_template_expr = Expr::String(ExprString {
                 value: non_template_str,
             });
             exprs.push(non_template_expr);
@@ -184,14 +186,12 @@ fn parse_scaler(yaml_parser: &mut Parser<Chars>) -> Result<ScalerTemplate, Error
     // Add non-template string characters.
     if value.len() > curr_index {
         let non_template_str = value[curr_index..].to_string();
-        let non_template_expr = Expr::String(ExprString{
+        let non_template_expr = Expr::String(ExprString {
             value: non_template_str,
         });
         exprs.push(non_template_expr);
     }
 
-    let scalar = ScalerTemplate{
-        exprs,
-    };
+    let scalar = ScalerTemplate { exprs };
     Ok(scalar)
 }
