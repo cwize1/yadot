@@ -1,7 +1,11 @@
+use std::ops::Range;
+
 use anyhow::{Error, anyhow};
 use chumsky::prelude::*;
 
-pub fn parse_template_expression(expr_str: &str) -> Result<String, Error> {
+use super::ast::{Expr, ExprString};
+
+pub fn parse_template_expression(expr_str: &str) -> Result<(Expr, usize), Error> {
     let parser = gen_template_expression_parser();
     let expr_res = parser.parse(expr_str);
     if let Err(errs) = expr_res {
@@ -10,11 +14,14 @@ pub fn parse_template_expression(expr_str: &str) -> Result<String, Error> {
         }
         return Err(anyhow!("expression parse errors (count={})", errs.len()))
     }
-    let expr = expr_res.unwrap();
-    Ok(expr)
+    let (expr, span) = expr_res.unwrap();
+    let expr = Expr::String(ExprString{
+        value: expr,
+    });
+    Ok((expr, span.end()))
 }
 
-fn gen_template_expression_parser() -> impl Parser<char, String, Error = Simple<char>> {
+fn gen_template_expression_parser() -> impl Parser<char, (String, Range<usize>), Error = Simple<char>> {
     let escape = just('\\').ignore_then(
         just('\\')
             .or(just('/'))
@@ -45,11 +52,13 @@ fn gen_template_expression_parser() -> impl Parser<char, String, Error = Simple<
         .collect::<String>()
         .labelled("string");
 
-    let expr = string;
+    let expr = string
+        .padded();
 
     let templ_expr = just("${{")
         .ignore_then(expr)
-        .then_ignore(just("}}"));
+        .then_ignore(just("}}"))
+        .map_with_span(|expr, span| (expr, span));
 
     templ_expr
 }

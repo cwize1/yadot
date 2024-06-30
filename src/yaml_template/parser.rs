@@ -5,7 +5,7 @@ use yaml_rust::{parser::Parser, Event};
 
 use crate::yaml_template::ast::MapEntryTemplate;
 
-use super::ast::{DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalerTemplate, SequenceTemplate};
+use super::{ast::{DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalerTemplate, SequenceTemplate}, template_expr_parser::parse_template_expression};
 
 pub fn parse_yaml_template(input: &str) -> Result<FileTemplate, Error> {
     let yaml_parser = &mut Parser::new(input.chars());
@@ -156,11 +156,42 @@ fn parse_scaler(yaml_parser: &mut Parser<Chars>) -> Result<ScalerTemplate, Error
     let (scalar, _) = yaml_parser.next()?;
     let Event::Scalar(value, _, _, _) = scalar else { unreachable!() };
 
-    let expr = Expr::String(ExprString{
-        value,
-    });
+    let mut curr_index = 0;
+    let mut exprs = Vec::new();
+    loop {
+        let template_expr_index = value[curr_index..].find("${{");
+        let Some(template_expr_index) = template_expr_index else {
+            break
+        };
+
+        // Add non-template string characters.
+        if template_expr_index > curr_index {
+            let non_template_str = value[curr_index..template_expr_index].to_string();
+            let non_template_expr = Expr::String(ExprString{
+                value: non_template_str,
+            });
+            exprs.push(non_template_expr);
+        }
+
+        // Add template string expression.
+        let expr_str = &value[template_expr_index..];
+        let (expr, end) = parse_template_expression(expr_str)?;
+        exprs.push(expr);
+
+        curr_index = template_expr_index + end;
+    }
+
+    // Add non-template string characters.
+    if value.len() > curr_index {
+        let non_template_str = value[curr_index..].to_string();
+        let non_template_expr = Expr::String(ExprString{
+            value: non_template_str,
+        });
+        exprs.push(non_template_expr);
+    }
+
     let scalar = ScalerTemplate{
-        exprs: vec![expr],
+        exprs,
     };
     Ok(scalar)
 }
