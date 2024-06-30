@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::ops::Range;
 
 use anyhow::{anyhow, Error};

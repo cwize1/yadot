@@ -42,12 +42,12 @@ pub enum ScalarTemplateValue {
     Expr(Expr),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     String(ExprString),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ExprString {
     pub value: String,
 }
