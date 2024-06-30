@@ -81,6 +81,8 @@ impl InterpreterRun {
     fn interpret_expr<'a>(&mut self, expr: &'a Expr) -> Result<Cow<'a, str>, Error> {
         match expr {
             Expr::String(expr_string) => self.interpret_expr_string(expr_string),
+            Expr::Inline => todo!(),
+            Expr::Drop => todo!(),
         }
     }
 

@@ -9,7 +9,7 @@ use chumsky::prelude::*;
 use crate::ast::{Expr, ExprString};
 
 pub struct TemplateExprParser {
-    parser: Box<dyn Parser<char, (String, Range<usize>), Error = Simple<char>>>,
+    parser: Box<dyn Parser<char, (Expr, Range<usize>), Error = Simple<char>>>,
 }
 
 impl TemplateExprParser {
@@ -29,13 +29,12 @@ impl TemplateExprParser {
             return Err(anyhow!("expression parse errors (count={})", errs.len()));
         }
         let (expr, span) = expr_res.unwrap();
-        let expr = Expr::String(ExprString { value: expr });
         Ok((expr, span.end()))
     }
 }
 
-fn gen_template_expression_parser(
-) -> impl Parser<char, (String, Range<usize>), Error = Simple<char>> {
+fn gen_template_expression_parser() -> impl Parser<char, (Expr, Range<usize>), Error = Simple<char>>
+{
     let escape = just('\\').ignore_then(
         just('\\')
             .or(just('/'))
@@ -65,9 +64,13 @@ fn gen_template_expression_parser(
         .ignore_then(filter(|c| *c != '\\' && *c != '"').or(escape).repeated())
         .then_ignore(just('"'))
         .collect::<String>()
+        .map(|value| Expr::String(ExprString { value }))
         .labelled("string");
 
-    let expr = string.padded();
+    let inline = just("inline").map(|_| Expr::Inline);
+    let drop = just("drop").map(|_| Expr::Drop);
+
+    let expr = string.or(inline).or(drop).padded();
 
     let templ_expr = just("${{")
         .ignore_then(expr)

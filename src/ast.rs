@@ -45,6 +45,8 @@ pub enum ScalarTemplateValue {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     String(ExprString),
+    Inline,
+    Drop,
 }
 
 #[derive(Clone, Debug, PartialEq)]
