@@ -1,3 +1,5 @@
+mod template_expr_parser;
+
 use std::str::Chars;
 
 use anyhow::Error;
@@ -8,7 +10,7 @@ use crate::ast::{
     ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
 };
 
-use super::template_expr_parser::TemplateExprParser;
+use template_expr_parser::TemplateExprParser;
 
 pub struct Parser {
     expr_parser: TemplateExprParser,

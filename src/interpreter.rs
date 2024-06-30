@@ -1,9 +1,11 @@
+mod interpreterrun;
+
 use anyhow::Error;
 use yaml_rust::Yaml;
 
 use crate::ast::FileTemplate;
 
-use super::interpreterrun::InterpreterRun;
+use interpreterrun::InterpreterRun;
 
 pub fn interpret(file_templ: &FileTemplate) -> Result<Vec<Yaml>, Error> {
     let mut interpreter_run = InterpreterRun::new();
