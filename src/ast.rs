@@ -17,7 +17,7 @@ pub enum NodeTemplate {
 
 #[derive(Clone, Debug)]
 pub struct SequenceTemplate {
-    pub nodes: Vec<NodeTemplate>,
+    pub values: Vec<NodeTemplate>,
 }
 
 #[derive(Clone, Debug)]
@@ -33,7 +33,13 @@ pub struct MapEntryTemplate {
 
 #[derive(Clone, Debug)]
 pub struct ScalerTemplate {
-    pub exprs: Vec<Expr>,
+    pub values: Vec<ScalarTemplateValue>,
+}
+
+#[derive(Clone, Debug)]
+pub enum ScalarTemplateValue {
+    String(String),
+    Expr(Expr),
 }
 
 #[derive(Clone, Debug)]

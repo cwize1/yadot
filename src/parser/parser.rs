@@ -4,8 +4,8 @@ use anyhow::Error;
 use yaml_rust::{parser::Parser as YamlParser, Event};
 
 use crate::ast::{
-    DocumentTemplate, Expr, ExprString, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate,
-    ScalerTemplate, SequenceTemplate,
+    DocumentTemplate, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate,
+    ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
 };
 
 use super::template_expr_parser::TemplateExprParser;
@@ -99,7 +99,7 @@ impl Parser {
         assert!(matches!(seq_start, Event::SequenceStart(..)));
 
         // Parse nodes.
-        let mut nodes = Vec::new();
+        let mut values = Vec::new();
         loop {
             let (event, _) = yaml_parser.peek()?;
             match event {
@@ -107,8 +107,8 @@ impl Parser {
                 | Event::MappingStart(_)
                 | Event::Scalar(_, _, _, _)
                 | Event::Alias(_) => {
-                    let node = self.parse_node(yaml_parser)?;
-                    nodes.push(node);
+                    let value = self.parse_node(yaml_parser)?;
+                    values.push(value);
                 }
                 Event::SequenceEnd => break,
                 _ => unreachable!(),
@@ -120,7 +120,7 @@ impl Parser {
         assert_eq!(seq_end, Event::SequenceEnd);
 
         // Return result.
-        let seq = SequenceTemplate { nodes };
+        let seq = SequenceTemplate { values };
         Ok(seq)
     }
 
@@ -172,8 +172,9 @@ impl Parser {
         };
 
         let mut curr_index = 0;
-        let mut exprs = Vec::new();
+        let mut values = Vec::new();
         loop {
+            // Find next template expression.
             let template_expr_index = value[curr_index..].find("${{");
             let Some(template_expr_index) = template_expr_index else {
                 break;
@@ -182,16 +183,15 @@ impl Parser {
             // Add non-template string characters.
             if template_expr_index > curr_index {
                 let non_template_str = value[curr_index..template_expr_index].to_string();
-                let non_template_expr = Expr::String(ExprString {
-                    value: non_template_str,
-                });
-                exprs.push(non_template_expr);
+                let value = ScalarTemplateValue::String(non_template_str);
+                values.push(value);
             }
 
-            // Add template string expression.
+            // Add template expression.
             let expr_str = &value[template_expr_index..];
             let (expr, end) = self.expr_parser.parse(expr_str)?;
-            exprs.push(expr);
+            let value = ScalarTemplateValue::Expr(expr);
+            values.push(value);
 
             curr_index = template_expr_index + end;
         }
@@ -199,13 +199,11 @@ impl Parser {
         // Add non-template string characters.
         if value.len() > curr_index {
             let non_template_str = value[curr_index..].to_string();
-            let non_template_expr = Expr::String(ExprString {
-                value: non_template_str,
-            });
-            exprs.push(non_template_expr);
+            let value = ScalarTemplateValue::String(non_template_str);
+            values.push(value);
         }
 
-        let scalar = ScalerTemplate { exprs };
+        let scalar = ScalerTemplate { values };
         Ok(scalar)
     }
 }
