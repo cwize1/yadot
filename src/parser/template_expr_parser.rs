@@ -3,7 +3,7 @@ use std::ops::Range;
 use anyhow::{anyhow, Error};
 use chumsky::prelude::*;
 
-use super::ast::{Expr, ExprString};
+use crate::ast::{Expr, ExprString};
 
 pub fn parse_template_expression(expr_str: &str) -> Result<(Expr, usize), Error> {
     let parser = gen_template_expression_parser();

@@ -1,8 +1,9 @@
 use anyhow::Error;
 
-use yaml_template::parser::parse_yaml_template;
+use parser::parse_yaml_template;
 
-mod yaml_template;
+mod ast;
+mod parser;
 
 fn main() {
     let out_res = process_yaml_template("hello: ${{ \"world\" }}");

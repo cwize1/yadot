@@ -3,15 +3,12 @@ use std::str::Chars;
 use anyhow::Error;
 use yaml_rust::{parser::Parser, Event};
 
-use crate::yaml_template::ast::MapEntryTemplate;
-
-use super::{
-    ast::{
-        DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate,
-        ScalerTemplate, SequenceTemplate,
-    },
-    template_expr_parser::parse_template_expression,
+use crate::ast::{
+    DocumentTemplate, Expr, ExprString, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate,
+    ScalerTemplate, SequenceTemplate,
 };
+
+use super::template_expr_parser::parse_template_expression;
 
 pub fn parse_yaml_template(input: &str) -> Result<FileTemplate, Error> {
     let yaml_parser = &mut Parser::new(input.chars());
