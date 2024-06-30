@@ -1,6 +1,6 @@
 use anyhow::Error;
 
-use parser::parse_yaml_template;
+use parser::Parser;
 
 mod ast;
 mod parser;
@@ -14,7 +14,8 @@ fn main() {
 }
 
 fn process_yaml_template(input: &str) -> Result<(), Error> {
-    let template = parse_yaml_template(input)?;
+    let parser = Parser::new();
+    let template = parser.parse(input)?;
     println!("{:#?}", template);
     Ok(())
 }

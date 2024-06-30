@@ -5,18 +5,30 @@ use chumsky::prelude::*;
 
 use crate::ast::{Expr, ExprString};
 
-pub fn parse_template_expression(expr_str: &str) -> Result<(Expr, usize), Error> {
-    let parser = gen_template_expression_parser();
-    let expr_res = parser.parse(expr_str);
-    if let Err(errs) = expr_res {
-        for err in &errs {
-            println!("Parse error: {}", err)
+pub struct TemplateExprParser{
+    parser: Box<dyn Parser<char, (String, Range<usize>), Error = Simple<char>>>,
+}
+
+impl TemplateExprParser{
+    pub fn new() -> TemplateExprParser {
+        let parser = gen_template_expression_parser();
+        TemplateExprParser{
+            parser: Box::new(parser),
         }
-        return Err(anyhow!("expression parse errors (count={})", errs.len()));
     }
-    let (expr, span) = expr_res.unwrap();
-    let expr = Expr::String(ExprString { value: expr });
-    Ok((expr, span.end()))
+
+    pub fn parse(&self, expr_str: &str) -> Result<(Expr, usize), Error> {
+        let expr_res = self.parser.parse(expr_str);
+        if let Err(errs) = expr_res {
+            for err in &errs {
+                println!("Parse error: {}", err)
+            }
+            return Err(anyhow!("expression parse errors (count={})", errs.len()));
+        }
+        let (expr, span) = expr_res.unwrap();
+        let expr = Expr::String(ExprString { value: expr });
+        Ok((expr, span.end()))
+    }
 }
 
 fn gen_template_expression_parser(
