@@ -47,9 +47,27 @@ pub enum Expr {
     String(ExprString),
     Inline,
     Drop,
+    Query(ExprQuery),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprString {
     pub value: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExprQuery {
+    Root,
+    ObjectIndex(ExprObjectIndex),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprIdent {
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprObjectIndex {
+    pub object: Box<ExprQuery>,
+    pub index: ExprIdent,
 }

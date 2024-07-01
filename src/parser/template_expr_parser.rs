@@ -6,7 +6,7 @@ use std::ops::Range;
 use anyhow::{anyhow, Error};
 use chumsky::{prelude::*, Stream};
 
-use crate::ast::{Expr, ExprString};
+use crate::ast::{Expr, ExprIdent, ExprObjectIndex, ExprQuery, ExprString};
 
 use super::template_expr_lexer::{gen_lexer, Token};
 
@@ -55,9 +55,33 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Expr, Range<usize>), 
         Token::String(value) => Expr::String(ExprString{value}),
         Token::Ident(ident) if ident == "inline" => Expr::Inline,
         Token::Ident(ident) if ident == "drop" => Expr::Drop,
-    };
+    }
+    .labelled("value");
 
-    let expr = value;
+    let ident = select! { Token::Ident(name) => ExprIdent{name}}.labelled("identifier");
+
+    let query_root = just(Token::Dot).to(ExprQuery::Root);
+
+    let query = query_root
+        .clone()
+        .then(ident)
+        .map(|(object, index)| {
+            ExprQuery::ObjectIndex(ExprObjectIndex {
+                object: Box::new(object),
+                index,
+            })
+        })
+        .then(just(Token::Dot).ignore_then(ident).repeated())
+        .foldl(|object, index| {
+            ExprQuery::ObjectIndex(ExprObjectIndex {
+                object: Box::new(object),
+                index,
+            })
+        });
+
+    let query = query.or(query_root).map(|query| Expr::Query(query));
+
+    let expr = value.or(query);
 
     let templ_expr = just(Token::Start)
         .ignore_then(expr)

@@ -209,6 +209,7 @@ impl InterpreterRun<'_> {
             Expr::String(expr_string) => self.interpret_expr_string(expr_string),
             Expr::Inline => self.interpret_expr_inline(),
             Expr::Drop => self.interpret_expr_drop(),
+            Expr::Query(_) => todo!(),
         }
     }
 

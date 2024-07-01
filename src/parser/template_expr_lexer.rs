@@ -13,7 +13,7 @@ pub enum Token {
     End,
     String(String),
     Ident(String),
-    Period,
+    Dot,
 }
 
 impl std::fmt::Display for Token {
@@ -23,7 +23,7 @@ impl std::fmt::Display for Token {
             Token::End => write!(f, "$}}"),
             Token::String(value) => write!(f, "{:?}", value),
             Token::Ident(name) => write!(f, "{}", name),
-            Token::Period => write!(f, "."),
+            Token::Dot => write!(f, "."),
         }
     }
 }
@@ -64,9 +64,9 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
 
     let ident = text::ident().map(|ident| Token::Ident(ident));
 
-    let period = just(".").map(|_| Token::Period);
+    let dot = just(".").map(|_| Token::Dot);
 
-    let token = start.or(end).or(string).or(ident).or(period);
+    let token = start.or(end).or(string).or(ident).or(dot);
 
     let token = token.map_with_span(|tok, span| (tok, span)).padded().repeated();
     token

@@ -14,12 +14,15 @@ macro_rules! testlist {
 }
 
 testlist! {
-    string_simple,
-    string_with_whitespace,
     drop_simple,
     drop_with_whitespace,
     inline_simple,
     inline_with_whitespace,
+    query_child,
+    query_nested_child,
+    query_root,
+    string_simple,
+    string_with_whitespace,
 }
 
 fn run_test(name: &str) {
@@ -69,5 +72,18 @@ fn fomat_expr(string: &mut String, expr: &Expr) {
         Expr::String(value) => string.push_str(&format!("{:?}", value.value)),
         Expr::Inline => string.push_str("inline"),
         Expr::Drop => string.push_str("drop"),
+        Expr::Query(query) => fomat_expr_query(string, query),
+    }
+}
+
+fn fomat_expr_query(string: &mut String, query: &ExprQuery) {
+    match query {
+        ExprQuery::Root => string.push_str("."),
+        ExprQuery::ObjectIndex(ExprObjectIndex { object, index }) => {
+            string.push_str("(");
+            fomat_expr_query(string, object);
+            string.push_str(").");
+            string.push_str(&index.name);
+        }
     }
 }
