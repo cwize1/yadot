@@ -5,7 +5,7 @@ use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
     Expr, ExprQuery, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
-    SequenceTemplate,
+    SequenceTemplate, Statement,
 };
 
 pub struct InterpreterRun<'a> {
@@ -170,9 +170,9 @@ impl InterpreterRun<'_> {
                         value: Cow::Borrowed(substring),
                     }));
                 }
-                ScalarTemplateValue::Expr(expr) => {
-                    let expr_value = self.interpret_expr(expr)?;
-                    values.push(expr_value);
+                ScalarTemplateValue::Expr(stmt) => {
+                    let value = self.interpret_statement(stmt)?;
+                    values.push(value);
                 }
             }
         }
@@ -206,6 +206,13 @@ impl InterpreterRun<'_> {
         }
         let string_value = Value::Yaml(Yaml::String(string));
         Ok(string_value)
+    }
+
+    fn interpret_statement<'a>(&mut self, stmt: &'a Statement)  -> Result<ExprValue<'a>, Error> {
+        match stmt {
+            Statement::Expr(expr) => self.interpret_expr(expr),
+            Statement::If(_) => todo!(),
+        }
     }
 
     fn interpret_expr<'a>(&mut self, expr: &'a Expr) -> Result<ExprValue<'a>, Error> {

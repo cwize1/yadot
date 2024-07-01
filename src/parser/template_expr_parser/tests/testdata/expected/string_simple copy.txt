@@ -1,4 +1,0 @@
-ERROR: <None>
-END: 12
-EXPR:
-"world"

@@ -39,7 +39,18 @@ pub struct ScalerTemplate {
 #[derive(Clone, Debug)]
 pub enum ScalarTemplateValue {
     String(String),
+    Expr(Statement),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Statement {
     Expr(Expr),
+    If(StatementIf),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StatementIf {
+    pub condition: Expr,
 }
 
 #[derive(Clone, Debug, PartialEq)]

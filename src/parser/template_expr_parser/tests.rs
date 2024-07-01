@@ -47,7 +47,7 @@ fn run_test(name: &str) {
     assert_eq!(expected, actual);
 }
 
-fn format_result(result: Result<(Expr, usize), Error>) -> String {
+fn format_result(result: Result<(Statement, usize), Error>) -> String {
     let mut string = String::new();
 
     string.push_str("ERROR: ");
@@ -57,14 +57,27 @@ fn format_result(result: Result<(Expr, usize), Error>) -> String {
         return string;
     }
 
-    let (expr, end) = result.unwrap();
+    let (statement, end) = result.unwrap();
 
     string.push_str("<None>\n");
     string.push_str(&format!("END: {}\n", end));
-    string.push_str("EXPR:\n");
-    fomat_expr(&mut string, &expr);
+    string.push_str("OUT:\n");
+    fomat_statement(&mut string, &statement);
 
     return string;
+}
+
+fn fomat_statement(string: &mut String, statement: &Statement) {
+    match statement {
+        Statement::Expr(expr) => fomat_expr(string, expr),
+        Statement::If(statement) => fomat_if(string, statement),
+    }
+}
+
+fn fomat_if(string: &mut String, statement: &StatementIf) {
+    string.push_str("if (");
+    fomat_expr(string, &statement.condition);
+    string.push_str("if )");
 }
 
 fn fomat_expr(string: &mut String, expr: &Expr) {
