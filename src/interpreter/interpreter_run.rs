@@ -31,9 +31,7 @@ struct ExprValueString<'a> {
 
 impl InterpreterRun<'_> {
     pub fn new<'a>(config: &'a Yaml) -> InterpreterRun<'a> {
-        InterpreterRun {
-            config
-        }
+        InterpreterRun { config }
     }
 
     pub fn interpret_file(&mut self, file_templ: &FileTemplate) -> Result<Vec<Yaml>, Error> {

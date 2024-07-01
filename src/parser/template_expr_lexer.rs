@@ -1,6 +1,11 @@
 use std::ops::Range;
 
-use chumsky::{error::Simple, primitive::{filter, just}, text::{self, TextParser}, Parser};
+use chumsky::{
+    error::Simple,
+    primitive::{filter, just},
+    text::{self, TextParser},
+    Parser,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Token {

@@ -36,7 +36,7 @@ impl TemplateExprParser {
 
         let expr_str_len = expr_str.chars().count();
         let tokens = tokens_res.unwrap();
-        let eoi = expr_str_len..expr_str_len+1;
+        let eoi = expr_str_len..expr_str_len + 1;
 
         let expr_res = self.parser.parse(Stream::from_iter(eoi, tokens.into_iter()));
         if let Err(errs) = expr_res {
