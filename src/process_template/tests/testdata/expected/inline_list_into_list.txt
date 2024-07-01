@@ -1,0 +1,6 @@
+ERROR: <None>
+OUTPUT:
+---
+- cat
+- dog
+- elephant

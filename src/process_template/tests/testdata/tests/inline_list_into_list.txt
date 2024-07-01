@@ -1,0 +1,4 @@
+- cat
+- ${{ inline }}:
+    - dog
+    - elephant

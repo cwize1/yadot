@@ -4,14 +4,14 @@ use anyhow::{anyhow, Error};
 use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
-    DocumentTemplate, Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
-    SequenceTemplate,
+    Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
 };
 
 pub struct InterpreterRun {}
 
 enum Value {
     Yaml(Yaml),
+    InlineYaml(Yaml),
     Inline,
     Drop,
     Nothing,
@@ -35,19 +35,19 @@ impl InterpreterRun {
     pub fn interpret_file(&mut self, file_templ: &FileTemplate) -> Result<Vec<Yaml>, Error> {
         let mut docs = Vec::new();
         for doc_templ in &file_templ.docs {
-            let doc = self.interpret_doc(doc_templ)?;
-            if let Some(doc) = doc {
-                docs.push(doc);
-            }
+            let value = self.interpret_node(&doc_templ.node)?;
+            let value = self.expect_value(value)?;
+
+            match value {
+                Value::Yaml(value) | Value::InlineYaml(value) => {
+                    docs.push(value);
+                }
+                Value::Nothing => {}
+                Value::Inline | Value::Drop => unreachable!(),
+            };
         }
 
         Ok(docs)
-    }
-
-    fn interpret_doc(&mut self, doc_templ: &DocumentTemplate) -> Result<Option<Yaml>, Error> {
-        let node = self.interpret_node(&doc_templ.node)?;
-        let node = self.expect_yaml_value(node)?;
-        Ok(node)
     }
 
     fn interpret_node(&mut self, node_templ: &NodeTemplate) -> Result<Value, Error> {
@@ -62,9 +62,28 @@ impl InterpreterRun {
         let mut values = Vec::new();
         for value_templ in &seq_templ.values {
             let value = self.interpret_node(value_templ)?;
-            let value = self.expect_yaml_value(value)?;
-            if let Some(value) = value {
-                values.push(value);
+            let value = self.expect_value(value)?;
+            match value {
+                Value::Yaml(value) => {
+                    values.push(value);
+                }
+                Value::InlineYaml(value) => {
+                    let sublist = match value {
+                        Yaml::Array(sublist) => sublist,
+                        Yaml::Hash(_) => return Err(anyhow!("cannot inline maps into lists")),
+                        Yaml::Real(_) | Yaml::Integer(_) | Yaml::String(_) | Yaml::Boolean(_) | Yaml::Null => {
+                            return Err(anyhow!("cannot inline values into lists"))
+                        }
+                        Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
+                    };
+
+                    // Merge sublist into this list.
+                    for item in sublist {
+                        values.push(item);
+                    }
+                }
+                Value::Nothing => {}
+                Value::Inline | Value::Drop => unreachable!(),
             }
         }
 
@@ -80,30 +99,31 @@ impl InterpreterRun {
             match key {
                 Value::Yaml(key) => {
                     let value = self.interpret_node(&entry_templ.value)?;
-                    let value = self.expect_yaml_value(value)?;
+                    let value = self.expect_value(value)?;
                     let value = match value {
-                        Some(value) => value,
+                        Value::Yaml(value) | Value::InlineYaml(value) => value,
                         // In YAML, a key without a value is given a default value of null.
-                        None => Yaml::Null,
+                        Value::Nothing => Yaml::Null,
+                        Value::Inline | Value::Drop => unreachable!(),
                     };
                     entries.insert(key, value);
                 }
                 Value::Inline => {
                     let value = self.interpret_node(&entry_templ.value)?;
-                    let value = self.expect_yaml_value(value)?;
+                    let value = self.expect_value(value)?;
 
                     // Check if the only item in the map is the inline expression.
                     if map_templ.entries.len() == 1 {
-                        // Return the value, to remove the map.
                         let value = match value {
-                            Some(value) => Value::Yaml(value),
-                            None => Value::Nothing,
+                            // Report value as inlined.
+                            Value::Yaml(value) => Value::InlineYaml(value),
+                            _ => value,
                         };
                         return Ok(value);
                     }
 
-                    if let Some(value) = value {
-                        match value {
+                    match value {
+                        Value::Yaml(value) | Value::InlineYaml(value) => match value {
                             Yaml::Hash(submap) => {
                                 for (key, value) in submap {
                                     entries.insert(key, value);
@@ -114,7 +134,9 @@ impl InterpreterRun {
                                 return Err(anyhow!("cannot inline values into maps"))
                             }
                             Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
-                        }
+                        },
+                        Value::Nothing => {}
+                        Value::Inline | Value::Drop => unreachable!(),
                     }
                 }
                 Value::Drop => {
@@ -126,6 +148,7 @@ impl InterpreterRun {
                     }
                 }
                 Value::Nothing => {}
+                Value::InlineYaml(_) => unreachable!(),
             }
         }
 
@@ -201,12 +224,11 @@ impl InterpreterRun {
         Ok(ExprValue::Drop)
     }
 
-    fn expect_yaml_value(&mut self, value: Value) -> Result<Option<Yaml>, Error> {
+    fn expect_value(&mut self, value: Value) -> Result<Value, Error> {
         match value {
-            Value::Yaml(node) => Ok(Some(node)),
+            Value::Yaml(_) | Value::InlineYaml(_) | Value::Nothing => Ok(value),
             Value::Inline => Err(anyhow!("expression value 'inline' can only be used as a map key")),
             Value::Drop => Err(anyhow!("expression value 'drop' can only be used as a map key")),
-            Value::Nothing => Ok(None),
         }
     }
 }

@@ -22,6 +22,7 @@ testlist! {
     inline_double_drop,
     inline_double,
     inline_field,
+    inline_list_into_list,
     inline_list_into_map,
     inline_value,
     simple_list_expr,
