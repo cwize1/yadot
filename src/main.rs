@@ -1,12 +1,9 @@
 mod ast;
 mod interpreter;
 mod parser;
+mod process_template;
 
-use anyhow::Error;
-
-use interpreter::interpret;
-use parser::Parser;
-use yaml_rust::YamlEmitter;
+use process_template::process_yaml_template;
 
 fn main() {
     let out_res = process_yaml_template("hello: ${{ \"world\" }}");
@@ -14,19 +11,7 @@ fn main() {
         eprintln!("yadot failed: {err:?}");
         return;
     }
-}
 
-fn process_yaml_template(input: &str) -> Result<(), Error> {
-    let parser = Parser::new();
-    let template = parser.parse(input)?;
-    let file = interpret(&template)?;
-
-    let mut out_str = String::new();
-    let mut emitter = YamlEmitter::new(&mut out_str);
-    for doc in &file {
-        emitter.dump(doc)?;
-    }
-
+    let out_str = out_res.unwrap();
     println!("{}", out_str);
-    Ok(())
 }

@@ -1,0 +1,1 @@
+ERROR: cannot inline lists into maps

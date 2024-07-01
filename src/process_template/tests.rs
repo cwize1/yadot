@@ -14,17 +14,28 @@ macro_rules! testlist {
 }
 
 testlist! {
-    string_simple,
-    string_with_whitespace,
+    drop_empty_field_value,
+    drop_field,
     drop_simple,
-    drop_with_whitespace,
+    drop_substring,
+    drop_value,
+    inline_double_drop,
+    inline_double,
+    inline_field,
+    inline_list_into_map,
+    inline_value,
+    simple_list_expr,
+    simple_list,
     inline_simple,
-    inline_with_whitespace,
+    inline_substring,
+    inline_value_into_map,
+    simple_string,
+    simple_string_expr,
 }
 
 fn run_test(name: &str) {
     let rootdir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let test_data_dir = rootdir.join("src/parser/template_expr_parser/tests/testdata");
+    let test_data_dir = rootdir.join("src/process_template/tests/testdata");
 
     let test_file = test_data_dir.join(format!("tests/{}.txt", name));
     let expected_file = test_data_dir.join(format!("expected/{}.txt", name));
@@ -33,8 +44,7 @@ fn run_test(name: &str) {
 
     let test = fs::read_to_string(test_file).unwrap();
 
-    let parser = TemplateExprParser::new();
-    let result = parser.parse(&test);
+    let result = process_yaml_template(&test);
     let actual = format_result(result);
 
     fs::create_dir_all(actual_dir).unwrap();
@@ -44,30 +54,20 @@ fn run_test(name: &str) {
     assert_eq!(expected, actual);
 }
 
-fn format_result(result: Result<(Expr, usize), Error>) -> String {
+fn format_result(result: Result<String, Error>) -> String {
     let mut string = String::new();
 
     string.push_str("ERROR: ");
-
     if let Err(err) = result {
         string.push_str(&err.to_string());
         return string;
     }
 
-    let (expr, end) = result.unwrap();
+    let output = result.unwrap();
 
     string.push_str("<None>\n");
-    string.push_str(&format!("END: {}\n", end));
-    string.push_str("EXPR:\n");
-    fomat_expr(&mut string, &expr);
+    string.push_str("OUTPUT:\n");
+    string.push_str(&output);
 
     return string;
-}
-
-fn fomat_expr(string: &mut String, expr: &Expr) {
-    match expr {
-        Expr::String(value) => string.push_str(&format!("{:?}", value.value)),
-        Expr::Inline => string.push_str("inline"),
-        Expr::Drop => string.push_str("drop"),
-    }
 }
