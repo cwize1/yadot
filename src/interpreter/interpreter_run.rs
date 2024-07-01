@@ -4,7 +4,8 @@ use anyhow::{anyhow, Error};
 use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
-    Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
+    Expr, ExprQuery, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
+    SequenceTemplate,
 };
 
 pub struct InterpreterRun<'a> {
@@ -23,6 +24,7 @@ enum ExprValue<'a> {
     String(ExprValueString<'a>),
     Inline,
     Drop,
+    Yaml(Yaml),
 }
 
 struct ExprValueString<'a> {
@@ -160,71 +162,100 @@ impl InterpreterRun<'_> {
     }
 
     fn interpret_scalar(&mut self, scalar_templ: &ScalerTemplate) -> Result<Value, Error> {
-        let mut string = String::new();
-        let mut singular_value = None;
-
+        let mut values = Vec::new();
         for value_templ in &scalar_templ.values {
             match value_templ {
-                ScalarTemplateValue::String(substring) => string.push_str(substring),
+                ScalarTemplateValue::String(substring) => {
+                    values.push(ExprValue::String(ExprValueString {
+                        value: Cow::Borrowed(substring),
+                    }));
+                }
                 ScalarTemplateValue::Expr(expr) => {
                     let expr_value = self.interpret_expr(expr)?;
-                    match expr_value {
-                        ExprValue::String(expr_string) => {
-                            string.push_str(&expr_string.value);
-                        }
-                        ExprValue::Inline => {
-                            singular_value = Some(Value::Inline);
-                            break;
-                        }
-                        ExprValue::Drop => {
-                            singular_value = Some(Value::Drop);
-                            break;
-                        }
-                    }
+                    values.push(expr_value);
                 }
             }
         }
 
-        match singular_value {
-            Some(value) => {
-                if scalar_templ.values.len() > 1 {
-                    match value {
-                        Value::Inline => return Err(anyhow!("expression value 'inline' cannot be a substring")),
-                        Value::Drop => return Err(anyhow!("expression value 'drop' cannot be a substring")),
-                        _ => unreachable!(),
-                    }
-                }
+        if values.len() == 1 {
+            let singular_value = &values[0];
+            let value = match singular_value {
+                ExprValue::String(string) => Value::Yaml(Yaml::String(string.value.as_ref().to_string())),
+                ExprValue::Inline => Value::Inline,
+                ExprValue::Drop => Value::Drop,
+                ExprValue::Yaml(yaml) => Value::Yaml(yaml.clone()),
+            };
+            return Ok(value);
+        }
 
-                Ok(value)
-            }
-            None => {
-                let value = Value::Yaml(Yaml::String(string));
-                Ok(value)
+        let mut string = String::new();
+        for value in values {
+            match value {
+                ExprValue::String(expr_string) => {
+                    string.push_str(&expr_string.value);
+                }
+                ExprValue::Inline => return Err(anyhow!("expression value 'inline' cannot be a substring")),
+                ExprValue::Drop => return Err(anyhow!("expression value 'drop' cannot be a substring")),
+                ExprValue::Yaml(yaml) => match yaml {
+                    Yaml::String(substring) => {
+                        string.push_str(&substring);
+                    }
+                    _ => return Err(anyhow!("expression value cannot be a substring: value is not a string")),
+                },
             }
         }
+        let string_value = Value::Yaml(Yaml::String(string));
+        Ok(string_value)
     }
 
     fn interpret_expr<'a>(&mut self, expr: &'a Expr) -> Result<ExprValue<'a>, Error> {
         match expr {
-            Expr::String(expr_string) => self.interpret_expr_string(expr_string),
-            Expr::Inline => self.interpret_expr_inline(),
-            Expr::Drop => self.interpret_expr_drop(),
-            Expr::Query(_) => todo!(),
+            Expr::String(expr_string) => self.interpret_string(expr_string),
+            Expr::Inline => self.interpret_inline(),
+            Expr::Drop => self.interpret_drop(),
+            Expr::Query(query) => self.interpret_query(query),
         }
     }
 
-    fn interpret_expr_string<'a>(&mut self, expr_string: &'a ExprString) -> Result<ExprValue<'a>, Error> {
+    fn interpret_string<'a>(&mut self, expr_string: &'a ExprString) -> Result<ExprValue<'a>, Error> {
         Ok(ExprValue::String(ExprValueString {
             value: Cow::Borrowed(&expr_string.value),
         }))
     }
 
-    fn interpret_expr_inline<'a>(&mut self) -> Result<ExprValue<'a>, Error> {
+    fn interpret_inline<'a>(&mut self) -> Result<ExprValue<'a>, Error> {
         Ok(ExprValue::Inline)
     }
 
-    fn interpret_expr_drop<'a>(&mut self) -> Result<ExprValue<'a>, Error> {
+    fn interpret_drop<'a>(&mut self) -> Result<ExprValue<'a>, Error> {
         Ok(ExprValue::Drop)
+    }
+
+    fn interpret_query<'a>(&mut self, query: &ExprQuery) -> Result<ExprValue<'a>, Error> {
+        let value = self.query(query)?;
+        Ok(ExprValue::Yaml(value.clone()))
+    }
+
+    fn query(&mut self, query: &ExprQuery) -> Result<&Yaml, Error> {
+        match query {
+            ExprQuery::Root => Ok(&self.config),
+            ExprQuery::ObjectIndex(objectindex) => {
+                let object = self.query(&objectindex.object)?;
+                match object {
+                    Yaml::Hash(object) => {
+                        let subvalue = object.get(&Yaml::String(objectindex.index.name.clone()));
+                        match subvalue {
+                            Some(subvalue) => Ok(subvalue),
+                            None => Err(anyhow!("index '{}' value not found", objectindex.index.name)),
+                        }
+                    }
+                    _ => Err(anyhow!(
+                        "cannot get index '{}': value type is not indexable",
+                        objectindex.index.name
+                    )),
+                }
+            }
+        }
     }
 
     fn expect_value(&mut self, value: Value) -> Result<Value, Error> {

@@ -1,0 +1,3 @@
+animals:
+- cat: ${{ .cat }}
+- dog: ${{ .dog }}
