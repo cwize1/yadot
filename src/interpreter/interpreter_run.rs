@@ -7,7 +7,9 @@ use crate::ast::{
     Expr, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate, SequenceTemplate,
 };
 
-pub struct InterpreterRun {}
+pub struct InterpreterRun<'a> {
+    config: &'a Yaml,
+}
 
 enum Value {
     Yaml(Yaml),
@@ -27,9 +29,11 @@ struct ExprValueString<'a> {
     value: Cow<'a, str>,
 }
 
-impl InterpreterRun {
-    pub fn new() -> InterpreterRun {
-        InterpreterRun {}
+impl InterpreterRun<'_> {
+    pub fn new<'a>(config: &'a Yaml) -> InterpreterRun<'a> {
+        InterpreterRun {
+            config
+        }
     }
 
     pub fn interpret_file(&mut self, file_templ: &FileTemplate) -> Result<Vec<Yaml>, Error> {

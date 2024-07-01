@@ -1,4 +1,5 @@
 mod template_expr_parser;
+mod template_expr_lexer;
 
 use std::str::Chars;
 

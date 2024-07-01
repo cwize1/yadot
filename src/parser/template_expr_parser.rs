@@ -4,24 +4,41 @@ mod tests;
 use std::ops::Range;
 
 use anyhow::{anyhow, Error};
-use chumsky::prelude::*;
+use chumsky::{prelude::*, Stream};
 
 use crate::ast::{Expr, ExprString};
 
+use super::template_expr_lexer::{gen_lexer, Token};
+
 pub struct TemplateExprParser {
-    parser: Box<dyn Parser<char, (Expr, Range<usize>), Error = Simple<char>>>,
+    lexer: Box<dyn Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<char>>>,
+    parser: Box<dyn Parser<Token, (Expr, Range<usize>), Error = Simple<Token>>>,
 }
 
 impl TemplateExprParser {
     pub fn new() -> TemplateExprParser {
+        let lexer = gen_lexer();
         let parser = gen_template_expression_parser();
         TemplateExprParser {
+            lexer: Box::new(lexer),
             parser: Box::new(parser),
         }
     }
 
     pub fn parse(&self, expr_str: &str) -> Result<(Expr, usize), Error> {
-        let expr_res = self.parser.parse(expr_str);
+        let tokens_res = self.lexer.parse(expr_str);
+        if let Err(errs) = tokens_res {
+            for err in &errs {
+                println!("Parse error: {}", err)
+            }
+            return Err(anyhow!("expression parse errors (count={})", errs.len()));
+        }
+
+        let expr_str_len = expr_str.chars().count();
+        let tokens = tokens_res.unwrap();
+        let eoi = expr_str_len..expr_str_len+1;
+
+        let expr_res = self.parser.parse(Stream::from_iter(eoi, tokens.into_iter()));
         if let Err(errs) = expr_res {
             for err in &errs {
                 println!("Parse error: {}", err)
@@ -33,45 +50,18 @@ impl TemplateExprParser {
     }
 }
 
-fn gen_template_expression_parser() -> impl Parser<char, (Expr, Range<usize>), Error = Simple<char>> {
-    let escape = just('\\').ignore_then(
-        just('\\')
-            .or(just('/'))
-            .or(just('"'))
-            .or(just('b').to('\x08'))
-            .or(just('f').to('\x0C'))
-            .or(just('n').to('\n'))
-            .or(just('r').to('\r'))
-            .or(just('t').to('\t'))
-            .or(just('u').ignore_then(
-                filter(|c: &char| c.is_digit(16))
-                    .repeated()
-                    .exactly(4)
-                    .collect::<String>()
-                    .validate(|digits, span, emit| {
-                        char::from_u32(u32::from_str_radix(&digits, 16).unwrap()).unwrap_or_else(|| {
-                            emit(Simple::custom(span, "invalid unicode character"));
-                            '\u{FFFD}' // unicode replacement character
-                        })
-                    }),
-            )),
-    );
+fn gen_template_expression_parser() -> impl Parser<Token, (Expr, Range<usize>), Error = Simple<Token>> {
+    let value = select! {
+        Token::String(value) => Expr::String(ExprString{value}),
+        Token::Ident(ident) if ident == "inline" => Expr::Inline,
+        Token::Ident(ident) if ident == "drop" => Expr::Drop,
+    };
 
-    let string = just('"')
-        .ignore_then(filter(|c| *c != '\\' && *c != '"').or(escape).repeated())
-        .then_ignore(just('"'))
-        .collect::<String>()
-        .map(|value| Expr::String(ExprString { value }))
-        .labelled("string");
+    let expr = value;
 
-    let inline = just("inline").map(|_| Expr::Inline);
-    let drop = just("drop").map(|_| Expr::Drop);
-
-    let expr = string.or(inline).or(drop).padded();
-
-    let templ_expr = just("${{")
+    let templ_expr = just(Token::Start)
         .ignore_then(expr)
-        .then_ignore(just("}}"))
+        .then_ignore(just(Token::End))
         .map_with_span(|expr, span| (expr, span));
 
     templ_expr

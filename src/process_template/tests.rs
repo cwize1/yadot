@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, path::Path, io};
 
 use super::*;
 
@@ -39,13 +39,20 @@ fn run_test(name: &str) {
     let test_data_dir = rootdir.join("src/process_template/tests/testdata");
 
     let test_file = test_data_dir.join(format!("tests/{}.txt", name));
+    let test_config_file = test_data_dir.join(format!("tests/{}-config.txt", name));
     let expected_file = test_data_dir.join(format!("expected/{}.txt", name));
     let actual_dir = test_data_dir.join("actual");
     let actual_file = actual_dir.join(format!("{}.txt", name));
 
-    let test = fs::read_to_string(test_file).unwrap();
+    let test = fs::read_to_string(&test_file).unwrap();
+    let test_config = fs::read_to_string(&test_config_file);
+    let test_config = match test_config {
+        Ok(test_config) => test_config,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => "".to_string(),
+        _ => test_config.unwrap(),
+    };
 
-    let result = process_yaml_template(&test);
+    let result = process_yaml_template(&test, &test_config);
     let actual = format_result(result);
 
     fs::create_dir_all(actual_dir).unwrap();
