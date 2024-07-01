@@ -83,8 +83,8 @@ impl InterpreterRun {
                     let value = self.expect_yaml_value(value)?;
                     let value = match value {
                         Some(value) => value,
-                        // In YAML, a key without a value is given a default value of an empty map.
-                        None => Yaml::Hash(Hash::new()),
+                        // In YAML, a key without a value is given a default value of null.
+                        None => Yaml::Null,
                     };
                     entries.insert(key, value);
                 }

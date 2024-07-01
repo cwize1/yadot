@@ -2,4 +2,4 @@ ERROR: <None>
 OUTPUT:
 ---
 cat: dog
-elephant: {}
+elephant: ~
