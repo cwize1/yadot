@@ -36,7 +36,7 @@ tests:
       cat ${{drop}} dog
 
     expected:
-      error: expression value 'drop' cannot be a substring
+      error: drop_substring:1:1 expression value 'drop' cannot be a substring
       output:
 
   drop_value:
@@ -45,7 +45,7 @@ tests:
           ${{drop}}
 
     expected:
-      error: expression value 'drop' can only be used as a map key
+      error: drop_value:2:5 expression value 'drop' can only be used as a map key
       output:
 
   if_config_bool:
@@ -77,7 +77,7 @@ tests:
       ${{ if inline }}
 
     expected:
-      error: expression value 'inline' cannot be converted to a bool value
+      error: if_inline:1:1 expression value 'inline' cannot be converted to a bool value
       output:
 
   if_drop:
@@ -85,7 +85,7 @@ tests:
       ${{ if drop }}
 
     expected:
-      error: expression value 'drop' cannot be converted to a bool value
+      error: if_drop:1:1 expression value 'drop' cannot be converted to a bool value
       output:
 
   inline_double_drop:
@@ -147,7 +147,7 @@ tests:
           - elephant
 
     expected:
-      error: cannot inline lists into maps
+      error: inline_list_into_map:3:5 cannot inline lists into maps
       output:
 
   inline_map_into_list:
@@ -157,7 +157,7 @@ tests:
             elephant: parrot
 
     expected:
-      error: cannot inline maps into lists
+      error: inline_map_into_list:3:7 cannot inline maps into lists
       output:
 
   inline_value_into_list:
@@ -167,7 +167,7 @@ tests:
             elephant
 
     expected:
-      error: cannot inline values into lists
+      error: inline_value_into_list:3:7 cannot inline values into lists
       output:
 
   inline_simple:
@@ -185,7 +185,7 @@ tests:
       cat ${{inline}} dog
 
     expected:
-      error: expression value 'inline' cannot be a substring
+      error: inline_substring:1:1 expression value 'inline' cannot be a substring
       output:
 
   inline_value_into_map:
@@ -195,7 +195,7 @@ tests:
           elephant
 
     expected:
-      error: cannot inline values into maps
+      error: inline_value_into_map:3:5 cannot inline values into maps
       output:
 
   inline_value:
@@ -204,7 +204,7 @@ tests:
           ${{inline}}
 
     expected:
-      error: expression value 'inline' can only be used as a map key
+      error: inline_value:2:5 expression value 'inline' can only be used as a map key
       output:
 
   query_inline_object:

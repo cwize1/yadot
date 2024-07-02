@@ -1,10 +1,14 @@
+use std::rc::Rc;
+
 #[derive(Clone, Debug)]
 pub struct FileTemplate {
+    pub src_loc: SourceLocationSpan,
     pub docs: Vec<DocumentTemplate>,
 }
 
 #[derive(Clone, Debug)]
 pub struct DocumentTemplate {
+    pub src_loc: SourceLocationSpan,
     pub node: NodeTemplate,
 }
 
@@ -17,11 +21,13 @@ pub enum NodeTemplate {
 
 #[derive(Clone, Debug)]
 pub struct SequenceTemplate {
+    pub src_loc: SourceLocationSpan,
     pub values: Vec<NodeTemplate>,
 }
 
 #[derive(Clone, Debug)]
 pub struct MapTemplate {
+    pub src_loc: SourceLocationSpan,
     pub entries: Vec<MapEntryTemplate>,
 }
 
@@ -33,6 +39,7 @@ pub struct MapEntryTemplate {
 
 #[derive(Clone, Debug)]
 pub struct ScalerTemplate {
+    pub src_loc: SourceLocationSpan,
     pub values: Vec<ScalarTemplateValue>,
 }
 
@@ -81,4 +88,28 @@ pub struct ExprIdent {
 pub struct ExprObjectIndex {
     pub object: Box<ExprQuery>,
     pub index: ExprIdent,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SourceLocationSpan {
+    pub filename: Rc<String>,
+    pub start: SourceLocation,
+    pub end: SourceLocation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SourceLocation {
+    pub index: usize,
+    pub line: usize,
+    pub col: usize,
+}
+
+impl NodeTemplate {
+    pub fn src_loc(&self) -> &SourceLocationSpan {
+        match self {
+            NodeTemplate::Sequence(SequenceTemplate { src_loc, .. })
+            | NodeTemplate::Map(MapTemplate { src_loc, .. })
+            | NodeTemplate::Scaler(ScalerTemplate { src_loc, .. }) => &src_loc,
+        }
+    }
 }

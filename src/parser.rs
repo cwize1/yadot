@@ -1,14 +1,14 @@
 mod template_expr_lexer;
 mod template_expr_parser;
 
-use std::str::Chars;
+use std::{rc::Rc, str::Chars};
 
 use anyhow::Error;
-use yaml_rust::{parser::Parser as YamlParser, Event};
+use yaml_rust::{parser::Parser as YamlParser, scanner::Marker, Event};
 
 use crate::ast::{
     DocumentTemplate, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
-    SequenceTemplate,
+    SequenceTemplate, SourceLocation, SourceLocationSpan,
 };
 
 use template_expr_parser::TemplateExprParser;
@@ -23,11 +23,30 @@ impl Parser {
         Parser { expr_parser }
     }
 
-    pub fn parse(&self, input: &str) -> Result<FileTemplate, Error> {
+    pub fn parse(&self, filename: &str, input: &str) -> Result<FileTemplate, Error> {
+        let run = ParserRun::new(self, filename);
+        run.parse(input)
+    }
+}
+
+struct ParserRun<'a> {
+    expr_parser: &'a TemplateExprParser,
+    filename: Rc<String>,
+}
+
+impl ParserRun<'_> {
+    fn new<'a>(parser: &'a Parser, filename: &str) -> ParserRun<'a> {
+        ParserRun {
+            expr_parser: &parser.expr_parser,
+            filename: Rc::new(filename.to_string()),
+        }
+    }
+
+    fn parse(&self, input: &str) -> Result<FileTemplate, Error> {
         let yaml_parser = &mut YamlParser::new(input.chars());
 
         // Parse StreamStart.
-        let (evt_strm_start, _) = yaml_parser.next()?;
+        let (evt_strm_start, start) = yaml_parser.next()?;
         assert_eq!(evt_strm_start, Event::StreamStart);
 
         // Parse docs.
@@ -45,28 +64,30 @@ impl Parser {
         }
 
         // Parse StreamEnd.
-        let (evt_strm_end, _) = yaml_parser.next()?;
+        let (evt_strm_end, end) = yaml_parser.next()?;
         assert_eq!(evt_strm_end, Event::StreamEnd);
 
         // Return result.
-        let file = FileTemplate { docs: docs };
+        let src_loc = self.to_source_location_span(&start, &end);
+        let file = FileTemplate { src_loc, docs };
         Ok(file)
     }
 
     fn parse_yaml_doc(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<DocumentTemplate, Error> {
         // Parse DocumentStart.
-        let (doc_start, _) = yaml_parser.next()?;
+        let (doc_start, start) = yaml_parser.next()?;
         assert_eq!(doc_start, Event::DocumentStart);
 
         // Parse node.
         let node = self.parse_node(yaml_parser)?;
 
         // Parse DocumentEnd.
-        let (doc_start, _) = yaml_parser.next()?;
+        let (doc_start, end) = yaml_parser.next()?;
         assert_eq!(doc_start, Event::DocumentEnd);
 
         // Return result.
-        let doc = DocumentTemplate { node };
+        let src_loc = self.to_source_location_span(&start, &end);
+        let doc = DocumentTemplate { src_loc, node };
         Ok(doc)
     }
 
@@ -92,7 +113,7 @@ impl Parser {
 
     fn parse_sequence(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<SequenceTemplate, Error> {
         // Parse SequenceStart.
-        let (seq_start, _) = yaml_parser.next()?;
+        let (seq_start, start) = yaml_parser.next()?;
         assert!(matches!(seq_start, Event::SequenceStart(..)));
 
         // Parse nodes.
@@ -110,17 +131,18 @@ impl Parser {
         }
 
         // Parse SequenceEnd.
-        let (seq_end, _) = yaml_parser.next()?;
+        let (seq_end, end) = yaml_parser.next()?;
         assert_eq!(seq_end, Event::SequenceEnd);
 
         // Return result.
-        let seq = SequenceTemplate { values };
+        let src_loc = self.to_source_location_span(&start, &end);
+        let seq = SequenceTemplate { src_loc, values };
         Ok(seq)
     }
 
     fn parse_mapping(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<MapTemplate, Error> {
         // Parse MappingStart.
-        let (map_start, _) = yaml_parser.next()?;
+        let (map_start, start) = yaml_parser.next()?;
         assert!(matches!(map_start, Event::MappingStart(..)));
 
         // Parse entries.
@@ -148,17 +170,25 @@ impl Parser {
         }
 
         // Parse MappingEnd.
-        let (seq_end, _) = yaml_parser.next()?;
-        assert_eq!(seq_end, Event::MappingEnd);
+        let (map_end, end) = yaml_parser.next()?;
+        assert_eq!(map_end, Event::MappingEnd);
+
+        let mut src_loc = self.to_source_location_span(&start, &end);
+
+        // In YAML, you don't know that you are parsing a map until you see the first colon ':' character.
+        // So, the MappingStart's mark will typically point to the ':' character instead of the start of the first key.
+        if entries.len() > 0 && entries[0].key.src_loc().start.index < src_loc.start.index {
+            src_loc.start = entries[0].key.src_loc().start.clone()
+        }
 
         // Return result.
-        let map = MapTemplate { entries };
+        let map = MapTemplate { src_loc, entries };
         Ok(map)
     }
 
     fn parse_scaler(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<ScalerTemplate, Error> {
         // Parse Scalar.
-        let (scalar, _) = yaml_parser.next()?;
+        let (scalar, start) = yaml_parser.next()?;
         let Event::Scalar(value, _, _, _) = scalar else {
             unreachable!()
         };
@@ -195,7 +225,26 @@ impl Parser {
             values.push(value);
         }
 
-        let scalar = ScalerTemplate { values };
+        let (_, end) = yaml_parser.peek()?;
+
+        let src_loc = self.to_source_location_span(&start, end);
+        let scalar = ScalerTemplate { src_loc, values };
         Ok(scalar)
+    }
+
+    fn to_source_location_span(&self, start: &Marker, end: &Marker) -> SourceLocationSpan {
+        SourceLocationSpan {
+            filename: self.filename.clone(),
+            start: Self::to_source_location(start),
+            end: Self::to_source_location(end),
+        }
+    }
+
+    fn to_source_location(mark: &Marker) -> SourceLocation {
+        SourceLocation {
+            index: mark.index(),
+            line: mark.line(),
+            col: mark.col() + 1,
+        }
     }
 }

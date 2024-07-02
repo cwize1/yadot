@@ -68,7 +68,7 @@ fn run_test(name: &str) {
 
     let expected = test_data[&Yaml::String("expected".to_string())].clone();
 
-    let result = process_yaml_template(template, config);
+    let result = process_yaml_template(name, template, config);
     let actual = format_result(result);
 
     test_data.insert(Yaml::String("expected".to_string()), actual.clone());
@@ -80,7 +80,7 @@ fn run_test(name: &str) {
 fn format_result(result: Result<Vec<Yaml>, Error>) -> Yaml {
     let (err, output) = match result {
         Ok(docs) => (Yaml::Null, Yaml::Array(docs)),
-        Err(err) => (Yaml::String(err.to_string()), Yaml::Null),
+        Err(err) => (Yaml::String(format!("{:#}", err)), Yaml::Null),
     };
 
     let mut result = Hash::new();
