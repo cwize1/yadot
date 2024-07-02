@@ -72,6 +72,22 @@ tests:
         vegetable:
           - carrot
 
+  if_inline:
+    template: |
+      ${{ if inline }}
+
+    expected:
+      error: expression value 'inline' cannot be converted to a bool value
+      output:
+
+  if_drop:
+    template: |
+      ${{ if drop }}
+
+    expected:
+      error: expression value 'drop' cannot be converted to a bool value
+      output:
+
   inline_double_drop:
     template: |
       cat: dog
@@ -132,6 +148,26 @@ tests:
 
     expected:
       error: cannot inline lists into maps
+      output:
+
+  inline_map_into_list:
+    template: |
+      - cat: dog
+      - ${{ inline }}:
+            elephant: parrot
+
+    expected:
+      error: cannot inline maps into lists
+      output:
+
+  inline_value_into_list:
+    template: |
+      - cat: dog
+      - ${{ inline }}:
+            elephant
+
+    expected:
+      error: cannot inline values into lists
       output:
 
   inline_simple:
@@ -215,6 +251,18 @@ tests:
       error:
       output:
       - animals: cats and dogs
+
+  query_not_found:
+    template: |
+      ${{.animal}}
+
+    config: |
+      animals:
+      - cat
+
+    expected:
+      error: index 'animal' value not found
+      output:
 
   simple_list_expr:
     template: |
