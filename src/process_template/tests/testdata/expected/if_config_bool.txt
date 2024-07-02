@@ -1,0 +1,8 @@
+ERROR: <None>
+OUTPUT:
+---
+fruit:
+  - peach
+  - banana
+vegetable:
+  - carrot

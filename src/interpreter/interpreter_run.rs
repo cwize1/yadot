@@ -5,7 +5,7 @@ use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
     Expr, ExprQuery, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
-    SequenceTemplate, Statement,
+    SequenceTemplate, Statement, StatementIf,
 };
 
 pub struct InterpreterRun<'a> {
@@ -20,8 +20,14 @@ enum Value {
     Nothing,
 }
 
-enum ExprValue<'a> {
-    String(ExprValueString<'a>),
+enum ScalarValue<'a> {
+    String(&'a str),
+    Inline,
+    Drop,
+    Yaml(Yaml),
+}
+
+enum ExprValue {
     Inline,
     Drop,
     Yaml(Yaml),
@@ -40,7 +46,7 @@ impl InterpreterRun<'_> {
         let mut docs = Vec::new();
         for doc_templ in &file_templ.docs {
             let value = self.interpret_node(&doc_templ.node)?;
-            let value = self.expect_value(value)?;
+            let value = Self::expect_value(value)?;
 
             match value {
                 Value::Yaml(value) | Value::InlineYaml(value) => {
@@ -66,7 +72,7 @@ impl InterpreterRun<'_> {
         let mut values = Vec::new();
         for value_templ in &seq_templ.values {
             let value = self.interpret_node(value_templ)?;
-            let value = self.expect_value(value)?;
+            let value = Self::expect_value(value)?;
             match value {
                 Value::Yaml(value) => {
                     values.push(value);
@@ -103,7 +109,7 @@ impl InterpreterRun<'_> {
             match key {
                 Value::Yaml(key) => {
                     let value = self.interpret_node(&entry_templ.value)?;
-                    let value = self.expect_value(value)?;
+                    let value = Self::expect_value(value)?;
                     let value = match value {
                         Value::Yaml(value) | Value::InlineYaml(value) => value,
                         // In YAML, a key without a value is given a default value of null.
@@ -114,7 +120,7 @@ impl InterpreterRun<'_> {
                 }
                 Value::Inline => {
                     let value = self.interpret_node(&entry_templ.value)?;
-                    let value = self.expect_value(value)?;
+                    let value = Self::expect_value(value)?;
 
                     // Check if the only item in the map is the inline expression.
                     if map_templ.entries.len() == 1 {
@@ -166,12 +172,15 @@ impl InterpreterRun<'_> {
         for value_templ in &scalar_templ.values {
             match value_templ {
                 ScalarTemplateValue::String(substring) => {
-                    values.push(ExprValue::String(ExprValueString {
-                        value: Cow::Borrowed(substring),
-                    }));
+                    values.push(ScalarValue::String(substring));
                 }
                 ScalarTemplateValue::Expr(stmt) => {
                     let value = self.interpret_statement(stmt)?;
+                    let value = match value {
+                        ExprValue::Inline => ScalarValue::Inline,
+                        ExprValue::Drop => ScalarValue::Drop,
+                        ExprValue::Yaml(yaml) => ScalarValue::Yaml(yaml),
+                    };
                     values.push(value);
                 }
             }
@@ -180,10 +189,10 @@ impl InterpreterRun<'_> {
         if values.len() == 1 {
             let singular_value = &values[0];
             let value = match singular_value {
-                ExprValue::String(string) => Value::Yaml(Yaml::String(string.value.as_ref().to_string())),
-                ExprValue::Inline => Value::Inline,
-                ExprValue::Drop => Value::Drop,
-                ExprValue::Yaml(yaml) => Value::Yaml(yaml.clone()),
+                ScalarValue::String(string) => Value::Yaml(Yaml::String(string.to_string())),
+                ScalarValue::Inline => Value::Inline,
+                ScalarValue::Drop => Value::Drop,
+                ScalarValue::Yaml(yaml) => Value::Yaml(yaml.clone()),
             };
             return Ok(value);
         }
@@ -191,12 +200,12 @@ impl InterpreterRun<'_> {
         let mut string = String::new();
         for value in values {
             match value {
-                ExprValue::String(expr_string) => {
-                    string.push_str(&expr_string.value);
+                ScalarValue::String(expr_string) => {
+                    string.push_str(expr_string);
                 }
-                ExprValue::Inline => return Err(anyhow!("expression value 'inline' cannot be a substring")),
-                ExprValue::Drop => return Err(anyhow!("expression value 'drop' cannot be a substring")),
-                ExprValue::Yaml(yaml) => match yaml {
+                ScalarValue::Inline => return Err(anyhow!("expression value 'inline' cannot be a substring")),
+                ScalarValue::Drop => return Err(anyhow!("expression value 'drop' cannot be a substring")),
+                ScalarValue::Yaml(yaml) => match yaml {
                     Yaml::String(substring) => {
                         string.push_str(&substring);
                     }
@@ -208,14 +217,23 @@ impl InterpreterRun<'_> {
         Ok(string_value)
     }
 
-    fn interpret_statement<'a>(&mut self, stmt: &'a Statement)  -> Result<ExprValue<'a>, Error> {
+    fn interpret_statement(&mut self, stmt: &Statement) -> Result<ExprValue, Error> {
         match stmt {
             Statement::Expr(expr) => self.interpret_expr(expr),
-            Statement::If(_) => todo!(),
+            Statement::If(if_stmt) => self.interpret_if(if_stmt),
         }
     }
 
-    fn interpret_expr<'a>(&mut self, expr: &'a Expr) -> Result<ExprValue<'a>, Error> {
+    fn interpret_if(&mut self, if_stmt: &StatementIf) -> Result<ExprValue, Error> {
+        let conditional = self.interpret_expr(&if_stmt.condition)?;
+        let conditional = Self::expect_implicit_bool(conditional)?;
+        match conditional {
+            true => Ok(ExprValue::Inline),
+            false => Ok(ExprValue::Drop),
+        }
+    }
+
+    fn interpret_expr(&mut self, expr: &Expr) -> Result<ExprValue, Error> {
         match expr {
             Expr::String(expr_string) => self.interpret_string(expr_string),
             Expr::Inline => self.interpret_inline(),
@@ -224,21 +242,19 @@ impl InterpreterRun<'_> {
         }
     }
 
-    fn interpret_string<'a>(&mut self, expr_string: &'a ExprString) -> Result<ExprValue<'a>, Error> {
-        Ok(ExprValue::String(ExprValueString {
-            value: Cow::Borrowed(&expr_string.value),
-        }))
+    fn interpret_string(&mut self, expr_string: &ExprString) -> Result<ExprValue, Error> {
+        Ok(ExprValue::Yaml(Yaml::String(expr_string.value.clone())))
     }
 
-    fn interpret_inline<'a>(&mut self) -> Result<ExprValue<'a>, Error> {
+    fn interpret_inline(&mut self) -> Result<ExprValue, Error> {
         Ok(ExprValue::Inline)
     }
 
-    fn interpret_drop<'a>(&mut self) -> Result<ExprValue<'a>, Error> {
+    fn interpret_drop(&mut self) -> Result<ExprValue, Error> {
         Ok(ExprValue::Drop)
     }
 
-    fn interpret_query<'a>(&mut self, query: &ExprQuery) -> Result<ExprValue<'a>, Error> {
+    fn interpret_query(&mut self, query: &ExprQuery) -> Result<ExprValue, Error> {
         let value = self.query(query)?;
         Ok(ExprValue::Yaml(value.clone()))
     }
@@ -265,11 +281,23 @@ impl InterpreterRun<'_> {
         }
     }
 
-    fn expect_value(&mut self, value: Value) -> Result<Value, Error> {
+    fn expect_value(value: Value) -> Result<Value, Error> {
         match value {
             Value::Yaml(_) | Value::InlineYaml(_) | Value::Nothing => Ok(value),
             Value::Inline => Err(anyhow!("expression value 'inline' can only be used as a map key")),
             Value::Drop => Err(anyhow!("expression value 'drop' can only be used as a map key")),
+        }
+    }
+
+    fn expect_implicit_bool(value: ExprValue) -> Result<bool, Error> {
+        // Convrert null and false to false. All other valid values are true.
+        // This matches jq's semantics.
+        match value {
+            ExprValue::Inline => Err(anyhow!("expression value 'inline' cannot be converted to a bool value")),
+            ExprValue::Drop => Err(anyhow!("expression value 'drop' cannot be converted to a bool value")),
+            ExprValue::Yaml(Yaml::BadValue) => unreachable!(),
+            ExprValue::Yaml(Yaml::Boolean(false)) | ExprValue::Yaml(Yaml::Null) => Ok(false),
+            ExprValue::Yaml(_) => Ok(true),
         }
     }
 }

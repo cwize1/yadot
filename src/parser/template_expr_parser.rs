@@ -89,7 +89,7 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
 
     let if_statment = just(Token::Ident("if".to_string()))
         .ignore_then(expr.clone())
-        .map(|condition| Statement::If(StatementIf{condition}));
+        .map(|condition| Statement::If(StatementIf { condition }));
 
     let expr_statement = expr.map(|expr| Statement::Expr(expr));
 

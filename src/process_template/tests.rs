@@ -19,6 +19,7 @@ testlist! {
     drop_simple,
     drop_substring,
     drop_value,
+    if_config_bool,
     inline_double_drop,
     inline_double,
     inline_field,
