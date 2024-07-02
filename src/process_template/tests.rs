@@ -1,4 +1,8 @@
-use std::{fs, io, path::Path};
+use std::path::Path;
+
+use yaml_rust::yaml::Hash;
+
+use crate::yaml_utils::{yaml_emit_to_file, yaml_load_from_file};
 
 use super::*;
 
@@ -40,46 +44,51 @@ testlist! {
 
 fn run_test(name: &str) {
     let rootdir = Path::new(env!("CARGO_MANIFEST_DIR"));
+
     let test_data_dir = rootdir.join("src/process_template/tests/testdata");
+    let tests_data_file = test_data_dir.join("tests.yaml");
+    let actual_data_file = test_data_dir.join("actual.yaml");
 
-    let test_file = test_data_dir.join(format!("tests/{}.txt", name));
-    let test_config_file = test_data_dir.join(format!("tests/{}-config.txt", name));
-    let expected_file = test_data_dir.join(format!("expected/{}.txt", name));
-    let actual_dir = test_data_dir.join("actual");
-    let actual_file = actual_dir.join(format!("{}.txt", name));
+    let mut tests_data_docs = yaml_load_from_file(&tests_data_file).unwrap();
+    let tests_data_doc = as_hash_mut(&mut tests_data_docs[0]).unwrap();
+    let tests = as_hash_mut(&mut tests_data_doc[&Yaml::String("tests".to_string())]).unwrap();
+    let test_data = as_hash_mut(&mut tests[&Yaml::String(name.to_string())]).unwrap();
 
-    let test = fs::read_to_string(&test_file).unwrap();
-    let test_config = fs::read_to_string(&test_config_file);
-    let test_config = match test_config {
-        Ok(test_config) => test_config,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => "".to_string(),
-        _ => test_config.unwrap(),
+    let template = test_data[&Yaml::String("template".to_string())].as_str().unwrap();
+    let config = test_data.get(&Yaml::String("config".to_string()));
+    let config = match config {
+        Some(yaml) => yaml.as_str().unwrap(),
+        None => "",
     };
 
-    let result = process_yaml_template(&test, &test_config);
+    let expected = test_data[&Yaml::String("expected".to_string())].clone();
+
+    let result = process_yaml_template(template, config);
     let actual = format_result(result);
 
-    fs::create_dir_all(actual_dir).unwrap();
-    fs::write(actual_file, &actual).unwrap();
+    test_data.insert(Yaml::String("expected".to_string()), actual.clone());
+    yaml_emit_to_file(&tests_data_docs, &actual_data_file).unwrap();
 
-    let expected = fs::read_to_string(expected_file).unwrap();
     assert_eq!(expected, actual);
 }
 
-fn format_result(result: Result<String, Error>) -> String {
-    let mut string = String::new();
+fn format_result(result: Result<Vec<Yaml>, Error>) -> Yaml {
+    let (err, output) = match result {
+        Ok(docs) => (Yaml::Null, Yaml::Array(docs)),
+        Err(err) => (Yaml::String(err.to_string()), Yaml::Null),
+    };
 
-    string.push_str("ERROR: ");
-    if let Err(err) = result {
-        string.push_str(&err.to_string());
-        return string;
+    let mut result = Hash::new();
+    result.insert(Yaml::String("error".to_string()), err);
+    result.insert(Yaml::String("output".to_string()), output);
+
+    let result = Yaml::Hash(result);
+    result
+}
+
+fn as_hash_mut(yaml: &mut Yaml) -> Option<&mut Hash> {
+    match yaml {
+        Yaml::Hash(hash) => Some(hash),
+        _ => None,
     }
-
-    let output = result.unwrap();
-
-    string.push_str("<None>\n");
-    string.push_str("OUTPUT:\n");
-    string.push_str(&output);
-
-    return string;
 }

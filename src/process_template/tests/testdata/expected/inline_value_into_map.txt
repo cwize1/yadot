@@ -1,1 +1,0 @@
-ERROR: cannot inline values into maps

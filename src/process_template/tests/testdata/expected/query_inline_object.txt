@@ -1,8 +1,0 @@
-ERROR: <None>
-OUTPUT:
----
-animals:
-  - cat:
-      motion: pounce
-  - dog:
-      motion: run

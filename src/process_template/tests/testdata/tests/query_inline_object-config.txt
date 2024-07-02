@@ -1,4 +1,0 @@
-cat:
-    motion: pounce
-dog:
-    motion: run

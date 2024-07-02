@@ -1,8 +1,0 @@
-fruit:
-- peach
-- ${{ if .moreFruit }}:
-    - banana
-vegetable:
-- carrot
-- ${{ if .moreVegetables }}:
-    - tomato

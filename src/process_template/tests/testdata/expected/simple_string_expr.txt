@@ -1,4 +1,0 @@
-ERROR: <None>
-OUTPUT:
----
-hello

@@ -2,11 +2,17 @@
 mod tests;
 
 use anyhow::{anyhow, Error};
-use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
+use yaml_rust::{Yaml, YamlLoader};
 
-use crate::{interpreter::interpret, parser::Parser};
+use crate::{interpreter::interpret, parser::Parser, yaml_utils::yaml_emit_to_string};
 
-pub fn process_yaml_template(template_string: &str, config_string: &str) -> Result<String, Error> {
+pub fn process_yaml_template_str(template_string: &str, config_string: &str) -> Result<String, Error> {
+    let docs = process_yaml_template(template_string, config_string)?;
+    let out_str = yaml_emit_to_string(&docs)?;
+    Ok(out_str)
+}
+
+pub fn process_yaml_template(template_string: &str, config_string: &str) -> Result<Vec<Yaml>, Error> {
     let parser = Parser::new();
     let template = parser.parse(template_string)?;
 
@@ -18,12 +24,5 @@ pub fn process_yaml_template(template_string: &str, config_string: &str) -> Resu
     };
 
     let file = interpret(&template, config)?;
-
-    let mut out_str = String::new();
-    let mut emitter = YamlEmitter::new(&mut out_str);
-    for doc in &file {
-        emitter.dump(doc)?;
-    }
-
-    Ok(out_str)
+    Ok(file)
 }

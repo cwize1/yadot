@@ -1,4 +1,0 @@
-ERROR: <None>
-OUTPUT:
----
-animals: cats and dogs

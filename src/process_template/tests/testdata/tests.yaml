@@ -1,0 +1,257 @@
+tests:
+  drop_empty_field_value:
+    template: |
+      cat: dog
+      elephant:
+          ${{ drop }}: rat
+
+    expected:
+      error:
+      output:
+      - cat: dog
+        elephant:
+
+  drop_field:
+    template: |
+      cat: dog
+      ${{ drop }}:
+          elephant: rat
+
+    expected:
+      error:
+      output:
+      - cat: dog
+
+  drop_simple:
+    template: |
+      ${{ drop }}:
+          world
+
+    expected:
+      error:
+      output: []
+
+  drop_substring:
+    template: |
+      cat ${{drop}} dog
+
+    expected:
+      error: expression value 'drop' cannot be a substring
+      output:
+
+  drop_value:
+    template: |
+      cat:
+          ${{drop}}
+
+    expected:
+      error: expression value 'drop' can only be used as a map key
+      output:
+
+  if_config_bool:
+    template: |
+      fruit:
+      - peach
+      - ${{ if .moreFruit }}:
+          - banana
+      vegetable:
+      - carrot
+      - ${{ if .moreVegetables }}:
+          - tomato
+
+    config: |
+      moreFruit: true
+      moreVegetables: false
+
+    expected:
+      error:
+      output:
+      - fruit:
+          - peach
+          - banana
+        vegetable:
+          - carrot
+
+  inline_double_drop:
+    template: |
+      cat: dog
+      ${{ inline }}:
+          ${{ inline }}:
+              ${{ drop }}:
+                  elephant: rat
+
+    expected:
+      error:
+      output:
+      - cat: dog
+
+  inline_double:
+    template: |
+      cat: dog
+      ${{ inline }}:
+          ${{ inline }}:
+              elephant: rat
+
+    expected:
+      error:
+      output:
+      - cat: dog
+        elephant: rat
+
+  inline_field:
+    template: |
+      cat: dog
+      ${{ inline }}:
+          elephant: rat
+
+    expected:
+      error:
+      output:
+      - cat: dog
+        elephant: rat
+
+  inline_list_into_list:
+    template: |
+      - cat
+      - ${{ inline }}:
+          - dog
+          - elephant
+
+    expected:
+      error:
+      output:
+      - - cat
+        - dog
+        - elephant
+
+  inline_list_into_map:
+    template: |
+      cat: dog
+      ${{ inline }}:
+          - elephant
+
+    expected:
+      error: cannot inline lists into maps
+      output:
+
+  inline_simple:
+    template: |
+      ${{ inline }}:
+          world
+
+    expected:
+      error:
+      output:
+      - world
+
+  inline_substring:
+    template: |
+      cat ${{inline}} dog
+
+    expected:
+      error: expression value 'inline' cannot be a substring
+      output:
+
+  inline_value_into_map:
+    template: |
+      cat: dog
+      ${{ inline }}:
+          elephant
+
+    expected:
+      error: cannot inline values into maps
+      output:
+
+  inline_value:
+    template: |
+      cat:
+          ${{inline}}
+
+    expected:
+      error: expression value 'inline' can only be used as a map key
+      output:
+
+  query_inline_object:
+    template: |
+      animals:
+      - cat: ${{ .cat }}
+      - dog: ${{ .dog }}
+
+    config: |
+      cat:
+          motion: pounce
+      dog:
+          motion: run
+
+    expected:
+      error:
+      output:
+      - animals:
+        - cat:
+            motion: pounce
+        - dog:
+            motion: run
+
+  query_simple:
+    template: |
+      ${{.animal}}
+
+    config: |
+      animal: cat
+
+    expected:
+      error:
+      output:
+      - cat
+
+  query_substring:
+    template: |
+      animals: cats and ${{.animal}}
+
+    config: |
+      animal: dogs
+
+    expected:
+      error:
+      output:
+      - animals: cats and dogs
+
+  simple_list_expr:
+    template: |
+      - ${{"dog"}}
+      - ${{"cat"}}
+
+    expected:
+      error:
+      output:
+      - - dog
+        - cat
+
+  simple_list:
+    template: |
+      - cat
+      - dog
+
+    expected:
+      error:
+      output:
+      - - cat
+        - dog
+
+  simple_string_expr:
+    template: |
+      ${{ "hello" }}
+
+    expected:
+      error:
+      output:
+      - hello
+
+  simple_string:
+    template: |
+      world
+
+    expected:
+      error:
+      output:
+      - world
