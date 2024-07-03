@@ -18,6 +18,8 @@ pub enum Token {
     Ne,
     LBracket,
     RBracket,
+    Integer(i64),
+    Real(String),
 }
 
 impl std::fmt::Display for Token {
@@ -32,6 +34,8 @@ impl std::fmt::Display for Token {
             Token::Ne => write!(f, "!="),
             Token::LBracket => write!(f, "["),
             Token::RBracket => write!(f, "]"),
+            Token::Integer(i) => write!(f, "{}", i),
+            Token::Real(string) => write!(f, "{}", string),
         }
     }
 }
@@ -39,6 +43,25 @@ impl std::fmt::Display for Token {
 pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<char>> {
     let start = just("${{").map(|_| Token::Start);
     let end = just("}}").map(|_| Token::End);
+
+    let frac = just('.').chain(text::digits(10));
+
+    let exp = just('e')
+        .or(just('E'))
+        .chain(just('+').or(just('-')).or_not())
+        .chain::<char, _, _>(text::digits(10));
+
+    let number = just('-')
+        .or_not()
+        .chain::<char, _, _>(text::int(10))
+        .chain::<char, _, _>(frac.or_not().flatten())
+        .chain::<char, _, _>(exp.or_not().flatten())
+        .collect::<String>()
+        .map(|string| match string.parse::<i64>() {
+            Ok(i) => Token::Integer(i),
+            Err(_) => Token::Real(string),
+        })
+        .labelled("number");
 
     let escape = just('\\').ignore_then(
         just('\\')
@@ -89,7 +112,7 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
         _ => unreachable!(),
     });
 
-    let token = start.or(end).or(string).or(ident).or(ctrl).or(op);
+    let token = start.or(end).or(string).or(number).or(ident).or(ctrl).or(op);
 
     let token = token.map_with_span(|tok, span| (tok, span)).padded().repeated();
     token

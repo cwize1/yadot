@@ -70,10 +70,22 @@ pub enum Expr {
     False,
     Eq(ExprOpBinary),
     Ne(ExprOpBinary),
+    Integer(ExprInteger),
+    Real(ExprReal),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprString {
+    pub value: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprInteger {
+    pub value: i64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprReal {
     pub value: String,
 }
 

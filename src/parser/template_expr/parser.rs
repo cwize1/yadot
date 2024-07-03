@@ -6,7 +6,7 @@ use std::ops::Range;
 use anyhow::{anyhow, Error};
 use chumsky::{prelude::*, Stream};
 
-use crate::ast::{Expr, ExprIndex, ExprOpBinary, ExprQuery, ExprString, Statement, StatementIf};
+use crate::ast::{Expr, ExprIndex, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, Statement, StatementIf};
 
 use super::lexer::{gen_lexer, Token};
 
@@ -54,6 +54,8 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
     let expr = recursive(|expr| {
         let value = select! {
             Token::String(value) => Expr::String(ExprString{value}),
+            Token::Integer(value) => Expr::Integer(ExprInteger{value}),
+            Token::Real(value) => Expr::Real(ExprReal{value}),
             Token::Ident(ident) if ident == "inline" => Expr::Inline,
             Token::Ident(ident) if ident == "drop" => Expr::Drop,
             Token::Ident(ident) if ident == "true" => Expr::True,

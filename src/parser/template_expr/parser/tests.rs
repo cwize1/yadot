@@ -88,8 +88,10 @@ fn fomat_expr(string: &mut String, expr: &Expr) {
         Expr::Query(query) => fomat_expr_query(string, query),
         Expr::True => string.push_str("true"),
         Expr::False => string.push_str("false"),
-        Expr::Eq(_) => todo!(),
-        Expr::Ne(_) => todo!(),
+        Expr::Eq(op) => fomat_binary_op(string, "==", op),
+        Expr::Ne(op) => fomat_binary_op(string, "!=", op),
+        Expr::Integer(value) => string.push_str(&format!("{}", value.value)),
+        Expr::Real(value) => string.push_str(&value.value),
     }
 }
 

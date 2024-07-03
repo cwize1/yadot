@@ -2,8 +2,8 @@ use anyhow::{anyhow, Error};
 use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
-    Expr, ExprOpBinary, ExprQuery, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue,
-    ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
+    Expr, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, FileTemplate, MapTemplate, NodeTemplate,
+    ScalarTemplateValue, ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
 };
 
 pub struct InterpreterRun<'a> {
@@ -289,6 +289,8 @@ impl InterpreterRun<'_> {
             Expr::False => Ok(ExprValue::Yaml(Yaml::Boolean(false))),
             Expr::Eq(op) => self.interpret_eq(op, src_loc),
             Expr::Ne(op) => self.interpret_ne(op, src_loc),
+            Expr::Integer(integer) => self.interpret_integer(integer),
+            Expr::Real(real) => self.interpret_real(real),
         }
     }
 
@@ -338,6 +340,25 @@ impl InterpreterRun<'_> {
                             )),
                         }
                     }
+                    Yaml::Array(list) => {
+                        let index = match index {
+                            ExprValue::Yaml(Yaml::Integer(index)) => index,
+                            _ => {
+                                return Err(errwithloc!(
+                                    src_loc,
+                                    "value of type {} cannot be used to index into a list",
+                                    Self::exp_value_type_name(&index),
+                                ))
+                            }
+                        };
+
+                        let index = usize::try_from(index)?;
+                        let subvalue = list.get(index);
+                        match subvalue {
+                            Some(subvalue) => Ok(subvalue),
+                            None => Err(errwithloc!(src_loc, "index {} is out of bounds", index)),
+                        }
+                    }
                     _ => Err(errwithloc!(
                         src_loc,
                         "cannot get index {}: value type {} is not indexable",
@@ -363,6 +384,14 @@ impl InterpreterRun<'_> {
         let res = left != right;
         let res = ExprValue::Yaml(Yaml::Boolean(res));
         Ok(res)
+    }
+
+    fn interpret_integer(&mut self, integer: &ExprInteger) -> Result<ExprValue, Error> {
+        Ok(ExprValue::Yaml(Yaml::Integer(integer.value)))
+    }
+
+    fn interpret_real(&mut self, real: &ExprReal) -> Result<ExprValue, Error> {
+        Ok(ExprValue::Yaml(Yaml::Real(real.value.clone())))
     }
 
     fn expect_value(value: Value) -> Result<Value, Error> {

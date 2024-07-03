@@ -306,6 +306,45 @@ tests:
       error: query_index_bool:1:1 value of type bool cannot be used to index into a map
       output:
 
+  query_index_list:
+    template: |
+      - ${{.[1]}}
+      - ${{.[0]}}
+
+    config: |
+      - apple
+      - banana
+
+    expected:
+      error:
+      output:
+      - - banana
+        - apple
+
+  query_index_list_out_of_bounds:
+    template: |
+      - ${{.[2]}}
+
+    config: |
+      - apple
+      - banana
+
+    expected:
+      error: query_index_list_out_of_bounds:1:3 index 2 is out of bounds
+      output:
+
+  query_index_list_string:
+    template: |
+      ${{.["a"]}}
+
+    config: |
+      - apple
+      - banana
+
+    expected:
+      error: query_index_list_string:1:1 value of type string cannot be used to index into a list
+      output:
+
   simple_list_expr:
     template: |
       - ${{"dog"}}
