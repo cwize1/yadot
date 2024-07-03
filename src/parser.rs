@@ -1,5 +1,4 @@
-mod template_expr_lexer;
-mod template_expr_parser;
+mod template_expr;
 
 use std::{rc::Rc, str::Chars};
 
@@ -11,7 +10,7 @@ use crate::ast::{
     SequenceTemplate, SourceLocation, SourceLocationSpan,
 };
 
-use template_expr_parser::TemplateExprParser;
+use template_expr::parser::TemplateExprParser;
 
 pub struct Parser {
     expr_parser: TemplateExprParser,

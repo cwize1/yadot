@@ -27,7 +27,7 @@ testlist! {
 
 fn run_test(name: &str) {
     let rootdir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let test_data_dir = rootdir.join("src/parser/template_expr_parser/tests/testdata");
+    let test_data_dir = rootdir.join("src/parser/template_expr/parser/tests/testdata");
 
     let test_file = test_data_dir.join(format!("tests/{}.txt", name));
     let expected_file = test_data_dir.join(format!("expected/{}.txt", name));

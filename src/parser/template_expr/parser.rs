@@ -8,7 +8,7 @@ use chumsky::{prelude::*, Stream};
 
 use crate::ast::{Expr, ExprIdent, ExprObjectIndex, ExprQuery, ExprString, Statement, StatementIf};
 
-use super::template_expr_lexer::{gen_lexer, Token};
+use super::lexer::{gen_lexer, Token};
 
 pub struct TemplateExprParser {
     lexer: Box<dyn Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<char>>>,
