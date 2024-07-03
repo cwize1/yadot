@@ -96,11 +96,13 @@ fn fomat_expr(string: &mut String, expr: &Expr) {
 fn fomat_expr_query(string: &mut String, query: &ExprQuery) {
     match query {
         ExprQuery::Root => string.push_str("."),
-        ExprQuery::ObjectIndex(ExprObjectIndex { object, index }) => {
+        ExprQuery::Index(ExprIndex { object, index }) => {
             string.push_str("(");
             fomat_expr_query(string, object);
             string.push_str(").");
-            string.push_str(&index.name);
+            string.push_str("[");
+            fomat_expr(string, index);
+            string.push_str("]");
         }
     }
 }

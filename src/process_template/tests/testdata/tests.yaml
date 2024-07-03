@@ -269,7 +269,7 @@ tests:
       - cat
 
     expected:
-      error: query_not_found:1:1 index 'animal' value not found
+      error: query_not_found:1:1 index "animal" not found
       output:
 
   query_index_wrong_type:
@@ -280,7 +280,30 @@ tests:
       animal: cat
 
     expected:
-      error: "query_index_wrong_type:1:1 cannot get index 'sound': value type string is not indexable"
+      error: "query_index_wrong_type:1:1 cannot get index \"sound\": value type string is not indexable"
+      output:
+
+  query_index_string:
+    template: |
+      ${{.["."]}}
+
+    config: |
+      .: period
+
+    expected:
+      error:
+      output:
+      - period
+
+  query_index_bool:
+    template: |
+      ${{.[true]}}
+
+    config: |
+      apple: banana
+
+    expected:
+      error: query_index_bool:1:1 value of type bool cannot be used to index into a map
       output:
 
   simple_list_expr:

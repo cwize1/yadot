@@ -16,6 +16,8 @@ pub enum Token {
     Dot,
     Eq,
     Ne,
+    LBracket,
+    RBracket,
 }
 
 impl std::fmt::Display for Token {
@@ -28,6 +30,8 @@ impl std::fmt::Display for Token {
             Token::Dot => write!(f, "."),
             Token::Eq => write!(f, "=="),
             Token::Ne => write!(f, "!="),
+            Token::LBracket => write!(f, "["),
+            Token::RBracket => write!(f, "]"),
         }
     }
 }
@@ -78,8 +82,10 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
             _ => Err(Simple::custom(span, format!("unknown operator {}", s))),
         });
 
-    let ctrl = one_of(".").map(|c| match c {
+    let ctrl = one_of(".[]").map(|c| match c {
         '.' => Token::Dot,
+        '[' => Token::LBracket,
+        ']' => Token::RBracket,
         _ => unreachable!(),
     });
 

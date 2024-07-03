@@ -40,6 +40,8 @@ testlist! {
     query_substring,
     query_not_found,
     query_index_wrong_type,
+    query_index_string,
+    query_index_bool,
     simple_list_expr,
     simple_list,
     inline_simple,

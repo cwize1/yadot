@@ -80,7 +80,7 @@ pub struct ExprString {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprQuery {
     Root,
-    ObjectIndex(ExprObjectIndex),
+    Index(ExprIndex),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,14 +90,9 @@ pub struct ExprOpBinary {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ExprIdent {
-    pub name: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ExprObjectIndex {
+pub struct ExprIndex {
     pub object: Box<ExprQuery>,
-    pub index: ExprIdent,
+    pub index: Box<Expr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

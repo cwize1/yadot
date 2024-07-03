@@ -6,7 +6,7 @@ use std::ops::Range;
 use anyhow::{anyhow, Error};
 use chumsky::{prelude::*, Stream};
 
-use crate::ast::{Expr, ExprIdent, ExprObjectIndex, ExprOpBinary, ExprQuery, ExprString, Statement, StatementIf};
+use crate::ast::{Expr, ExprIndex, ExprOpBinary, ExprQuery, ExprString, Statement, StatementIf};
 
 use super::lexer::{gen_lexer, Token};
 
@@ -61,26 +61,35 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
         }
         .labelled("value");
 
-        let ident = select! { Token::Ident(name) => ExprIdent{name}}.labelled("identifier");
+        let ident = select! { Token::Ident(name) => name}.labelled("identifier");
 
         let query_root = just(Token::Dot).to(ExprQuery::Root);
 
+        enum SubQuery {
+            Index(Expr),
+        }
+
+        let subquery_ident = ident.map(|index| SubQuery::Index(Expr::String(ExprString { value: index })));
+
+        let subquery_index = expr
+            .delimited_by(just(Token::LBracket), just(Token::RBracket))
+            .map(|index| SubQuery::Index(index));
+
+        let subquery = subquery_ident.or(subquery_index);
+
+        let subquery_fold = move |object, subquery| match subquery {
+            SubQuery::Index(index) => ExprQuery::Index(ExprIndex {
+                object: Box::new(object),
+                index: Box::new(index),
+            }),
+        };
+
         let query = query_root
             .clone()
-            .then(ident)
-            .map(|(object, index)| {
-                ExprQuery::ObjectIndex(ExprObjectIndex {
-                    object: Box::new(object),
-                    index,
-                })
-            })
-            .then(just(Token::Dot).ignore_then(ident).repeated())
-            .foldl(|object, index| {
-                ExprQuery::ObjectIndex(ExprObjectIndex {
-                    object: Box::new(object),
-                    index,
-                })
-            });
+            .then(subquery.clone())
+            .map(move |(object, index)| subquery_fold(object, index))
+            .then(just(Token::Dot).ignore_then(subquery).repeated())
+            .foldl(subquery_fold);
 
         let query = query.or(query_root).map(|query| Expr::Query(query));
 

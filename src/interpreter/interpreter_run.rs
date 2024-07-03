@@ -249,7 +249,7 @@ impl InterpreterRun<'_> {
                         return Err(errwithloc!(
                             scalar_templ.src_loc,
                             "expression value of type {} cannot be a substring",
-                            Self::value_type_name(&yaml)
+                            Self::yaml_type_name(&yaml)
                         ))
                     }
                 },
@@ -312,25 +312,37 @@ impl InterpreterRun<'_> {
     fn query(&mut self, query: &ExprQuery, src_loc: &SourceLocationSpan) -> Result<&Yaml, Error> {
         match query {
             ExprQuery::Root => Ok(&self.config),
-            ExprQuery::ObjectIndex(objectindex) => {
+            ExprQuery::Index(objectindex) => {
+                let index = self.interpret_expr(&objectindex.index, src_loc)?;
                 let object = self.query(&objectindex.object, src_loc)?;
                 match object {
                     Yaml::Hash(object) => {
-                        let subvalue = object.get(&Yaml::String(objectindex.index.name.clone()));
+                        let index = match index {
+                            ExprValue::Yaml(yaml @ Yaml::String(_)) => yaml,
+                            _ => {
+                                return Err(errwithloc!(
+                                    src_loc,
+                                    "value of type {} cannot be used to index into a map",
+                                    Self::exp_value_type_name(&index),
+                                ))
+                            }
+                        };
+
+                        let subvalue = object.get(&index);
                         match subvalue {
                             Some(subvalue) => Ok(subvalue),
                             None => Err(errwithloc!(
                                 src_loc,
-                                "index '{}' value not found",
-                                objectindex.index.name
+                                "index {} not found",
+                                Self::yaml_debug_string(&index),
                             )),
                         }
                     }
                     _ => Err(errwithloc!(
                         src_loc,
-                        "cannot get index '{}': value type {} is not indexable",
-                        objectindex.index.name,
-                        Self::value_type_name(object),
+                        "cannot get index {}: value type {} is not indexable",
+                        Self::expr_value_debug_string(&index),
+                        Self::yaml_type_name(object),
                     )),
                 }
             }
@@ -385,7 +397,36 @@ impl InterpreterRun<'_> {
         }
     }
 
-    fn value_type_name(yaml: &Yaml) -> &'static str {
+    fn expr_value_debug_string(value: &ExprValue) -> String {
+        match value {
+            ExprValue::Inline => "inline".to_string(),
+            ExprValue::Drop => "drop".to_string(),
+            ExprValue::Yaml(yaml) => Self::yaml_debug_string(yaml),
+        }
+    }
+
+    fn yaml_debug_string(yaml: &Yaml) -> String {
+        match yaml {
+            Yaml::Real(value) => value.clone(),
+            Yaml::Integer(value) => format!("{}", value).into(),
+            Yaml::String(value) => format!("{:?}", value).into(),
+            Yaml::Boolean(value) => format!("{}", value).into(),
+            Yaml::Array(_) => "<list>".to_string(),
+            Yaml::Hash(_) => "<map>".to_string(),
+            Yaml::Null => "<null>".to_string(),
+            Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
+        }
+    }
+
+    fn exp_value_type_name(value: &ExprValue) -> &'static str {
+        match value {
+            ExprValue::Inline => "inline",
+            ExprValue::Drop => "drop",
+            ExprValue::Yaml(yaml) => Self::yaml_type_name(yaml),
+        }
+    }
+
+    fn yaml_type_name(yaml: &Yaml) -> &'static str {
         match yaml {
             Yaml::Real(_) => "number",
             Yaml::Integer(_) => "integer",
