@@ -86,6 +86,10 @@ fn fomat_expr(string: &mut String, expr: &Expr) {
         Expr::Inline => string.push_str("inline"),
         Expr::Drop => string.push_str("drop"),
         Expr::Query(query) => fomat_expr_query(string, query),
+        Expr::True => string.push_str("true"),
+        Expr::False => string.push_str("false"),
+        Expr::Eq(_) => todo!(),
+        Expr::Ne(_) => todo!(),
     }
 }
 
@@ -99,4 +103,14 @@ fn fomat_expr_query(string: &mut String, query: &ExprQuery) {
             string.push_str(&index.name);
         }
     }
+}
+
+fn fomat_binary_op(string: &mut String, op: &str, binary_op: &ExprOpBinary) {
+    string.push_str("(");
+    fomat_expr(string, &binary_op.left);
+    string.push_str(")");
+    string.push_str(op);
+    string.push_str("(");
+    fomat_expr(string, &binary_op.right);
+    string.push_str(")");
 }

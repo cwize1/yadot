@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use chumsky::{
     error::Simple,
-    primitive::{filter, just},
+    primitive::{filter, just, one_of},
     text::{self, TextParser},
     Parser,
 };
@@ -14,6 +14,8 @@ pub enum Token {
     String(String),
     Ident(String),
     Dot,
+    Eq,
+    Ne,
 }
 
 impl std::fmt::Display for Token {
@@ -24,6 +26,8 @@ impl std::fmt::Display for Token {
             Token::String(value) => write!(f, "{:?}", value),
             Token::Ident(name) => write!(f, "{}", name),
             Token::Dot => write!(f, "."),
+            Token::Eq => write!(f, "=="),
+            Token::Ne => write!(f, "!="),
         }
     }
 }
@@ -64,9 +68,22 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
 
     let ident = text::ident().map(|ident| Token::Ident(ident));
 
-    let dot = just(".").map(|_| Token::Dot);
+    let op = one_of("!=")
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .try_map(|s, span| match s.as_str() {
+            "==" => Ok(Token::Eq),
+            "!=" => Ok(Token::Ne),
+            _ => Err(Simple::custom(span, format!("unknown operator {}", s))),
+        });
 
-    let token = start.or(end).or(string).or(ident).or(dot);
+    let ctrl = one_of(".").map(|c| match c {
+        '.' => Token::Dot,
+        _ => unreachable!(),
+    });
+
+    let token = start.or(end).or(string).or(ident).or(ctrl).or(op);
 
     let token = token.map_with_span(|tok, span| (tok, span)).padded().repeated();
     token

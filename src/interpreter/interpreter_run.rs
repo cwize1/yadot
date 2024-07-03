@@ -2,8 +2,8 @@ use anyhow::{anyhow, Error};
 use yaml_rust::{yaml::Hash, Yaml};
 
 use crate::ast::{
-    Expr, ExprQuery, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
-    SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
+    Expr, ExprOpBinary, ExprQuery, ExprString, FileTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue,
+    ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
 };
 
 pub struct InterpreterRun<'a> {
@@ -30,6 +30,7 @@ enum ScalarValue<'a> {
     Yaml(Yaml),
 }
 
+#[derive(Clone, Debug, PartialEq)]
 enum ExprValue {
     Inline,
     Drop,
@@ -247,7 +248,8 @@ impl InterpreterRun<'_> {
                     _ => {
                         return Err(errwithloc!(
                             scalar_templ.src_loc,
-                            "expression value cannot be a substring: value is not a string"
+                            "expression value of type {} cannot be a substring",
+                            Self::value_type_name(&yaml)
                         ))
                     }
                 },
@@ -283,6 +285,10 @@ impl InterpreterRun<'_> {
             Expr::Inline => self.interpret_inline(),
             Expr::Drop => self.interpret_drop(),
             Expr::Query(query) => self.interpret_query(query, src_loc),
+            Expr::True => Ok(ExprValue::Yaml(Yaml::Boolean(true))),
+            Expr::False => Ok(ExprValue::Yaml(Yaml::Boolean(false))),
+            Expr::Eq(op) => self.interpret_eq(op, src_loc),
+            Expr::Ne(op) => self.interpret_ne(op, src_loc),
         }
     }
 
@@ -313,16 +319,38 @@ impl InterpreterRun<'_> {
                         let subvalue = object.get(&Yaml::String(objectindex.index.name.clone()));
                         match subvalue {
                             Some(subvalue) => Ok(subvalue),
-                            None => Err(anyhow!("index '{}' value not found", objectindex.index.name)),
+                            None => Err(errwithloc!(
+                                src_loc,
+                                "index '{}' value not found",
+                                objectindex.index.name
+                            )),
                         }
                     }
-                    _ => Err(anyhow!(
-                        "cannot get index '{}': value type is not indexable",
-                        objectindex.index.name
+                    _ => Err(errwithloc!(
+                        src_loc,
+                        "cannot get index '{}': value type {} is not indexable",
+                        objectindex.index.name,
+                        Self::value_type_name(object),
                     )),
                 }
             }
         }
+    }
+
+    fn interpret_eq(&mut self, op: &ExprOpBinary, src_loc: &SourceLocationSpan) -> Result<ExprValue, Error> {
+        let left = self.interpret_expr(&op.left, src_loc)?;
+        let right = self.interpret_expr(&op.right, src_loc)?;
+        let res = left == right;
+        let res = ExprValue::Yaml(Yaml::Boolean(res));
+        Ok(res)
+    }
+
+    fn interpret_ne(&mut self, op: &ExprOpBinary, src_loc: &SourceLocationSpan) -> Result<ExprValue, Error> {
+        let left = self.interpret_expr(&op.left, src_loc)?;
+        let right = self.interpret_expr(&op.right, src_loc)?;
+        let res = left != right;
+        let res = ExprValue::Yaml(Yaml::Boolean(res));
+        Ok(res)
     }
 
     fn expect_value(value: Value) -> Result<Value, Error> {
@@ -343,11 +371,30 @@ impl InterpreterRun<'_> {
         // Convrert null and false to false. All other valid values are true.
         // This matches jq's semantics.
         match value {
-            ExprValue::Inline => Err(errwithloc!(src_loc, "expression value 'inline' cannot be converted to a bool value")),
-            ExprValue::Drop => Err(errwithloc!(src_loc, "expression value 'drop' cannot be converted to a bool value")),
+            ExprValue::Inline => Err(errwithloc!(
+                src_loc,
+                "expression value 'inline' cannot be converted to a bool value"
+            )),
+            ExprValue::Drop => Err(errwithloc!(
+                src_loc,
+                "expression value 'drop' cannot be converted to a bool value"
+            )),
             ExprValue::Yaml(Yaml::BadValue) => unreachable!(),
             ExprValue::Yaml(Yaml::Boolean(false)) | ExprValue::Yaml(Yaml::Null) => Ok(false),
             ExprValue::Yaml(_) => Ok(true),
+        }
+    }
+
+    fn value_type_name(yaml: &Yaml) -> &'static str {
+        match yaml {
+            Yaml::Real(_) => "number",
+            Yaml::Integer(_) => "integer",
+            Yaml::String(_) => "string",
+            Yaml::Boolean(_) => "bool",
+            Yaml::Array(_) => "list",
+            Yaml::Hash(_) => "map",
+            Yaml::Null => "null",
+            Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
         }
     }
 }

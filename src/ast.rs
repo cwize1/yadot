@@ -66,6 +66,10 @@ pub enum Expr {
     Inline,
     Drop,
     Query(ExprQuery),
+    True,
+    False,
+    Eq(ExprOpBinary),
+    Ne(ExprOpBinary),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,6 +81,12 @@ pub struct ExprString {
 pub enum ExprQuery {
     Root,
     ObjectIndex(ExprObjectIndex),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprOpBinary {
+    pub left: Box<Expr>,
+    pub right: Box<Expr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

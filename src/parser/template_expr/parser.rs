@@ -6,7 +6,7 @@ use std::ops::Range;
 use anyhow::{anyhow, Error};
 use chumsky::{prelude::*, Stream};
 
-use crate::ast::{Expr, ExprIdent, ExprObjectIndex, ExprQuery, ExprString, Statement, StatementIf};
+use crate::ast::{Expr, ExprIdent, ExprObjectIndex, ExprOpBinary, ExprQuery, ExprString, Statement, StatementIf};
 
 use super::lexer::{gen_lexer, Token};
 
@@ -56,6 +56,8 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
             Token::String(value) => Expr::String(ExprString{value}),
             Token::Ident(ident) if ident == "inline" => Expr::Inline,
             Token::Ident(ident) if ident == "drop" => Expr::Drop,
+            Token::Ident(ident) if ident == "true" => Expr::True,
+            Token::Ident(ident) if ident == "false" => Expr::False,
         }
         .labelled("value");
 
@@ -84,7 +86,24 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
 
         let atom = value.or(query);
 
-        atom
+        let compare_op = just(Token::Eq).or(just(Token::Ne));
+
+        let compare = atom
+            .clone()
+            .then(compare_op.then(atom).repeated())
+            .foldl(|left, (token, right)| match token {
+                Token::Eq => Expr::Eq(ExprOpBinary {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }),
+                Token::Ne => Expr::Ne(ExprOpBinary {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }),
+                _ => unreachable!(),
+            });
+
+        compare
     });
 
     let if_statment = just(Token::Ident("if".to_string()))

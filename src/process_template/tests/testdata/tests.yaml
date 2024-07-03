@@ -207,6 +207,14 @@ tests:
       error: inline_value:2:5 expression value 'inline' can only be used as a map key
       output:
 
+  boolean_as_substring:
+    template: |
+      Hello, ${{true}}
+
+    expected:
+      error: "boolean_as_substring:1:1 expression value of type bool cannot be a substring"
+      output:
+
   query_inline_object:
     template: |
       animals:
@@ -261,7 +269,18 @@ tests:
       - cat
 
     expected:
-      error: index 'animal' value not found
+      error: query_not_found:1:1 index 'animal' value not found
+      output:
+
+  query_index_wrong_type:
+    template:
+      ${{.animal.sound}}
+
+    config: |
+      animal: cat
+
+    expected:
+      error: "query_index_wrong_type:1:1 cannot get index 'sound': value type string is not indexable"
       output:
 
   simple_list_expr:
@@ -303,3 +322,110 @@ tests:
       error:
       output:
       - world
+
+  true_value:
+    template:
+      ${{ true }}
+
+    expected:
+      error:
+      output:
+      - true
+
+  false_value:
+    template:
+      ${{ false }}
+
+    expected:
+      error:
+      output:
+      - false
+
+  true_eq_true:
+    template:
+      ${{ true == true }}
+
+    expected:
+      error:
+      output:
+      - true
+
+  true_eq_false:
+    template:
+      ${{ true == false }}
+
+    expected:
+      error:
+      output:
+      - false
+
+  true_ne_false:
+    template:
+      ${{ true != false }}
+
+    expected:
+      error:
+      output:
+      - true
+
+  empty_string_eq:
+    template:
+      ${{ "" == "" }}
+
+    expected:
+      error:
+      output:
+      - true
+
+  empty_string_ne:
+    template:
+      ${{ "" != "" }}
+
+    expected:
+      error:
+      output:
+      - false
+
+  string_not_empty:
+    template:
+      ${{ "cat" != "" }}
+
+    expected:
+      error:
+      output:
+      - true
+
+  string_eq_itself:
+    template:
+      ${{ "cat" == "cat" }}
+
+    expected:
+      error:
+      output:
+      - true
+
+  string_eq_config_var:
+    template: ${{ "cat" == .animal }}
+
+    config: |
+      animal: cat
+
+    expected:
+      error:
+      output:
+      - true
+
+  if_config_var:
+    template: |
+        ${{ if .animal == "cat" }}:
+          sound: meow
+        ${{ if .animal == "dog" }}:
+          sound: woof
+
+    config: |
+      animal: cat
+
+    expected:
+      error:
+      output:
+      - sound: meow
