@@ -1,3 +1,6 @@
+// Copyright (c) Chris Gunn.
+// Licensed under the MIT license.
+
 use anyhow::{anyhow, Error};
 use yaml_rust::{yaml::Hash, Yaml};
 

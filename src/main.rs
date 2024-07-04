@@ -1,3 +1,6 @@
+// Copyright (c) Chris Gunn.
+// Licensed under the MIT license.
+
 mod ast;
 mod interpreter;
 mod parser;

@@ -1,3 +1,6 @@
+// Copyright (c) Chris Gunn.
+// Licensed under the MIT license.
+
 mod template_expr;
 
 use std::{rc::Rc, str::Chars};

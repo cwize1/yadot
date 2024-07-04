@@ -1,3 +1,6 @@
+// Copyright (c) Chris Gunn.
+// Licensed under the MIT license.
+
 #[cfg(test)]
 mod tests;
 

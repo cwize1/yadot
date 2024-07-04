@@ -1,3 +1,6 @@
+// Copyright (c) Chris Gunn.
+// Licensed under the MIT license.
+
 use std::{
     fs::{self, File},
     io::BufWriter,

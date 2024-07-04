@@ -1,3 +1,6 @@
+// Copyright (c) Chris Gunn.
+// Licensed under the MIT license.
+
 use std::path::Path;
 
 use yaml_rust::yaml::Hash;
