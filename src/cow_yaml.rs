@@ -7,7 +7,7 @@ mod loader;
 
 use std::rc::Rc;
 
-use linked_hash_map::LinkedHashMap;
+use hashlink::LinkedHashMap;
 
 pub use loader::parse_yaml_str;
 

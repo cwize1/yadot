@@ -4,8 +4,8 @@
 use std::rc::Rc;
 
 use anyhow::Error;
-use linked_hash_map::LinkedHashMap;
-use yaml_rust::YamlEmitter;
+use hashlink::LinkedHashMap;
+use saphyr::YamlEmitter;
 
 use crate::cow_yaml::Yaml;
 
@@ -20,7 +20,7 @@ pub fn yaml_emit_to_string(docs: &Vec<Yaml>) -> Result<String, Error> {
     Ok(out_str)
 }
 
-pub fn docs_to_yaml_rust_type(docs: &Vec<Yaml>) -> Vec<yaml_rust::Yaml> {
+pub fn docs_to_yaml_rust_type(docs: &Vec<Yaml>) -> Vec<saphyr::Yaml> {
     let mut res = Vec::new();
     for doc in docs {
         let doc_res = to_yaml_rust_type(doc);
@@ -29,35 +29,35 @@ pub fn docs_to_yaml_rust_type(docs: &Vec<Yaml>) -> Vec<yaml_rust::Yaml> {
     res
 }
 
-pub fn to_yaml_rust_type(docs: &Yaml) -> yaml_rust::Yaml {
+pub fn to_yaml_rust_type(docs: &Yaml) -> saphyr::Yaml {
     match docs {
-        Yaml::Real(value) => yaml_rust::Yaml::Real(value.as_ref().clone()),
-        Yaml::Integer(value) => yaml_rust::Yaml::Integer(*value),
-        Yaml::String(value) => yaml_rust::Yaml::Real(value.as_ref().clone()),
-        Yaml::Boolean(value) => yaml_rust::Yaml::Boolean(*value),
+        Yaml::Real(value) => saphyr::Yaml::Real(value.as_ref().clone()),
+        Yaml::Integer(value) => saphyr::Yaml::Integer(*value),
+        Yaml::String(value) => saphyr::Yaml::Real(value.as_ref().clone()),
+        Yaml::Boolean(value) => saphyr::Yaml::Boolean(*value),
         Yaml::Array(value) => list_to_yaml_rust_type(value),
         Yaml::Hash(value) => map_to_yaml_rust_type(value),
-        Yaml::Null => yaml_rust::Yaml::Null,
+        Yaml::Null => saphyr::Yaml::Null,
     }
 }
 
-fn list_to_yaml_rust_type(list: &Rc<Vec<Yaml>>) -> yaml_rust::Yaml {
+fn list_to_yaml_rust_type(list: &Rc<Vec<Yaml>>) -> saphyr::Yaml {
     let mut res = Vec::new();
     for node in list.as_ref() {
         let node_res = to_yaml_rust_type(node);
         res.push(node_res);
     }
-    let res = yaml_rust::Yaml::Array(res);
+    let res = saphyr::Yaml::Array(res);
     res
 }
 
-fn map_to_yaml_rust_type(list: &Rc<LinkedHashMap<Yaml, Yaml>>) -> yaml_rust::Yaml {
+fn map_to_yaml_rust_type(list: &Rc<LinkedHashMap<Yaml, Yaml>>) -> saphyr::Yaml {
     let mut res = LinkedHashMap::new();
     for (key, value) in list.as_ref() {
         let key_res = to_yaml_rust_type(key);
         let value_res = to_yaml_rust_type(value);
         res.insert(key_res, value_res);
     }
-    let res = yaml_rust::Yaml::Hash(res);
+    let res = saphyr::Yaml::Hash(res);
     res
 }

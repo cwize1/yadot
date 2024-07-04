@@ -6,7 +6,7 @@ mod template_expr;
 use std::{rc::Rc, str::Chars};
 
 use anyhow::{anyhow, Error};
-use yaml_rust::{parser::Parser as YamlParser, scanner::Marker, Event};
+use saphyr_parser::{parser::Parser as YamlParser, scanner::Marker, Event};
 
 use crate::ast::{
     DocumentTemplate, FileTemplate, MapEntryTemplate, MapTemplate, NodeTemplate, ScalarTemplateValue, ScalerTemplate,
@@ -48,7 +48,7 @@ impl ParserRun<'_> {
         let yaml_parser = &mut YamlParser::new(input.chars());
 
         // Parse StreamStart.
-        let (evt_strm_start, start) = yaml_parser.next()?;
+        let (evt_strm_start, start) = yaml_parser.next_token()?;
         assert_eq!(evt_strm_start, Event::StreamStart);
 
         // Parse docs.
@@ -66,7 +66,7 @@ impl ParserRun<'_> {
         }
 
         // Parse StreamEnd.
-        let (evt_strm_end, end) = yaml_parser.next()?;
+        let (evt_strm_end, end) = yaml_parser.next_token()?;
         assert_eq!(evt_strm_end, Event::StreamEnd);
 
         // Return result.
@@ -77,14 +77,14 @@ impl ParserRun<'_> {
 
     fn parse_yaml_doc(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<DocumentTemplate, Error> {
         // Parse DocumentStart.
-        let (doc_start, start) = yaml_parser.next()?;
+        let (doc_start, start) = yaml_parser.next_token()?;
         assert_eq!(doc_start, Event::DocumentStart);
 
         // Parse node.
         let node = self.parse_node(yaml_parser)?;
 
         // Parse DocumentEnd.
-        let (doc_start, end) = yaml_parser.next()?;
+        let (doc_start, end) = yaml_parser.next_token()?;
         assert_eq!(doc_start, Event::DocumentEnd);
 
         // Return result.
@@ -96,15 +96,15 @@ impl ParserRun<'_> {
     fn parse_node(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<NodeTemplate, Error> {
         let (event, _) = yaml_parser.peek()?;
         match event {
-            Event::SequenceStart(_) => {
+            Event::SequenceStart(..) => {
                 let sequence = self.parse_sequence(yaml_parser)?;
                 Ok(NodeTemplate::Sequence(sequence))
             }
-            Event::MappingStart(_) => {
+            Event::MappingStart(..) => {
                 let map = self.parse_mapping(yaml_parser)?;
                 Ok(NodeTemplate::Map(map))
             }
-            Event::Scalar(_, _, _, _) => {
+            Event::Scalar(..) => {
                 let scaler = self.parse_scaler(yaml_parser)?;
                 Ok(NodeTemplate::Scaler(scaler))
             }
@@ -115,7 +115,7 @@ impl ParserRun<'_> {
 
     fn parse_sequence(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<SequenceTemplate, Error> {
         // Parse SequenceStart.
-        let (seq_start, start) = yaml_parser.next()?;
+        let (seq_start, start) = yaml_parser.next_token()?;
         assert!(matches!(seq_start, Event::SequenceStart(..)));
 
         // Parse nodes.
@@ -123,7 +123,7 @@ impl ParserRun<'_> {
         loop {
             let (event, _) = yaml_parser.peek()?;
             match event {
-                Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                Event::SequenceStart(..) | Event::MappingStart(..) | Event::Scalar(..) | Event::Alias(_) => {
                     let value = self.parse_node(yaml_parser)?;
                     values.push(value);
                 }
@@ -133,7 +133,7 @@ impl ParserRun<'_> {
         }
 
         // Parse SequenceEnd.
-        let (seq_end, end) = yaml_parser.next()?;
+        let (seq_end, end) = yaml_parser.next_token()?;
         assert_eq!(seq_end, Event::SequenceEnd);
 
         // Return result.
@@ -144,7 +144,7 @@ impl ParserRun<'_> {
 
     fn parse_mapping(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<MapTemplate, Error> {
         // Parse MappingStart.
-        let (map_start, start) = yaml_parser.next()?;
+        let (map_start, start) = yaml_parser.next_token()?;
         assert!(matches!(map_start, Event::MappingStart(..)));
 
         // Parse entries.
@@ -152,7 +152,7 @@ impl ParserRun<'_> {
         loop {
             let (event, _) = yaml_parser.peek()?;
             let key = match event {
-                Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                Event::SequenceStart(..) | Event::MappingStart(..) | Event::Scalar(..) | Event::Alias(_) => {
                     self.parse_node(yaml_parser)?
                 }
                 Event::MappingEnd => break,
@@ -161,7 +161,7 @@ impl ParserRun<'_> {
 
             let (event, _) = yaml_parser.peek()?;
             let value = match event {
-                Event::SequenceStart(_) | Event::MappingStart(_) | Event::Scalar(_, _, _, _) | Event::Alias(_) => {
+                Event::SequenceStart(..) | Event::MappingStart(..) | Event::Scalar(..) | Event::Alias(_) => {
                     self.parse_node(yaml_parser)?
                 }
                 _ => unreachable!(),
@@ -172,7 +172,7 @@ impl ParserRun<'_> {
         }
 
         // Parse MappingEnd.
-        let (map_end, end) = yaml_parser.next()?;
+        let (map_end, end) = yaml_parser.next_token()?;
         assert_eq!(map_end, Event::MappingEnd);
 
         let mut src_loc = self.to_source_location_span(&start, &end);
@@ -190,7 +190,7 @@ impl ParserRun<'_> {
 
     fn parse_scaler(&self, yaml_parser: &mut YamlParser<Chars>) -> Result<ScalerTemplate, Error> {
         // Parse Scalar.
-        let (scalar, start) = yaml_parser.next()?;
+        let (scalar, start) = yaml_parser.next_token()?;
         let Event::Scalar(value, _, _, _) = scalar else {
             unreachable!()
         };

@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use anyhow::{anyhow, Error};
-use linked_hash_map::LinkedHashMap;
+use hashlink::LinkedHashMap;
 
 use crate::{
     ast::{
