@@ -5,7 +5,7 @@ mod template_expr;
 
 use std::{rc::Rc, str::Chars};
 
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use yaml_rust::{parser::Parser as YamlParser, scanner::Marker, Event};
 
 use crate::ast::{
@@ -108,7 +108,7 @@ impl ParserRun<'_> {
                 let scaler = self.parse_scaler(yaml_parser)?;
                 Ok(NodeTemplate::Scaler(scaler))
             }
-            Event::Alias(_) => todo!(),
+            Event::Alias(_) => return Err(anyhow!("yaml aliases not supported")),
             _ => unreachable!(),
         }
     }
@@ -207,7 +207,7 @@ impl ParserRun<'_> {
             // Add non-template string characters.
             if template_expr_index > curr_index {
                 let non_template_str = value[curr_index..template_expr_index].to_string();
-                let value = ScalarTemplateValue::String(non_template_str);
+                let value = ScalarTemplateValue::String(Rc::new(non_template_str));
                 values.push(value);
             }
 
@@ -223,7 +223,7 @@ impl ParserRun<'_> {
         // Add non-template string characters.
         if value.len() > curr_index {
             let non_template_str = value[curr_index..].to_string();
-            let value = ScalarTemplateValue::String(non_template_str);
+            let value = ScalarTemplateValue::String(Rc::new(non_template_str));
             values.push(value);
         }
 

@@ -2,12 +2,13 @@
 // Licensed under the MIT license.
 
 mod ast;
+mod cow_yaml;
 mod interpreter;
 mod parser;
 mod process_template;
 mod yaml_utils;
 
-use std::{fmt::format, fs};
+use std::fs;
 
 use anyhow::{Context, Error};
 use clap::{Arg, ArgAction, Command, ValueHint};

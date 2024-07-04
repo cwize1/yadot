@@ -5,9 +5,13 @@
 mod tests;
 
 use anyhow::{anyhow, Error};
-use yaml_rust::{Yaml, YamlLoader};
 
-use crate::{interpreter::interpret, parser::Parser, yaml_utils::yaml_emit_to_string};
+use crate::{
+    cow_yaml::{parse_yaml_str, Yaml},
+    interpreter::interpret,
+    parser::Parser,
+    yaml_utils::yaml_emit_to_string,
+};
 
 pub fn process_yaml_template_str(filename: &str, template_string: &str, config_string: &str) -> Result<String, Error> {
     let docs = process_yaml_template(filename, template_string, config_string)?;
@@ -19,10 +23,10 @@ pub fn process_yaml_template(filename: &str, template_string: &str, config_strin
     let parser = Parser::new();
     let template = parser.parse(filename, template_string)?;
 
-    let config = YamlLoader::load_from_str(config_string)?;
+    let config = parse_yaml_str(config_string)?;
     let config = match &config[..] {
-        [] => &Yaml::Null,
-        [config] => config,
+        [] => Yaml::Null,
+        [config] => config.clone(),
         _ => return Err(anyhow!("config yaml must only have a single document")),
     };
 

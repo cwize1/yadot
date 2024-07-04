@@ -1,16 +1,21 @@
 // Copyright (c) Chris Gunn.
 // Licensed under the MIT license.
 
-use anyhow::{anyhow, Error};
-use yaml_rust::{yaml::Hash, Yaml};
+use std::rc::Rc;
 
-use crate::ast::{
-    Expr, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, FileTemplate, MapTemplate, NodeTemplate,
-    ScalarTemplateValue, ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
+use anyhow::{anyhow, Error};
+use linked_hash_map::LinkedHashMap;
+
+use crate::{
+    ast::{
+        Expr, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, FileTemplate, MapTemplate, NodeTemplate,
+        ScalarTemplateValue, ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
+    },
+    cow_yaml::Yaml,
 };
 
-pub struct InterpreterRun<'a> {
-    config: &'a Yaml,
+pub struct InterpreterRun {
+    config: Yaml,
 }
 
 struct Value {
@@ -26,8 +31,7 @@ enum ValueData {
     Nothing,
 }
 
-enum ScalarValue<'a> {
-    String(&'a str),
+enum ScalarValue {
     Inline,
     Drop,
     Yaml(Yaml),
@@ -46,8 +50,8 @@ macro_rules! errwithloc {
     };
 }
 
-impl InterpreterRun<'_> {
-    pub fn new<'a>(config: &'a Yaml) -> InterpreterRun<'a> {
+impl InterpreterRun {
+    pub fn new(config: Yaml) -> InterpreterRun {
         InterpreterRun { config }
     }
 
@@ -93,12 +97,11 @@ impl InterpreterRun<'_> {
                         Yaml::Real(_) | Yaml::Integer(_) | Yaml::String(_) | Yaml::Boolean(_) | Yaml::Null => {
                             return Err(errwithloc!(value.src_loc, "cannot inline values into lists"))
                         }
-                        Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
                     };
 
                     // Merge sublist into this list.
-                    for item in sublist {
-                        values.push(item);
+                    for item in sublist.as_ref() {
+                        values.push(item.clone());
                     }
                 }
                 ValueData::Nothing => {}
@@ -106,7 +109,7 @@ impl InterpreterRun<'_> {
             }
         }
 
-        let seq = Yaml::Array(values);
+        let seq = Yaml::Array(Rc::new(values));
         let data = ValueData::Yaml(seq);
         let value = Value {
             src_loc: seq_templ.src_loc.clone(),
@@ -116,7 +119,7 @@ impl InterpreterRun<'_> {
     }
 
     fn interpret_map(&mut self, map_templ: &MapTemplate) -> Result<Value, Error> {
-        let mut entries = Hash::new();
+        let mut entries = LinkedHashMap::new();
         for entry_templ in &map_templ.entries {
             let key = self.interpret_node(&entry_templ.key)?;
             match key.data {
@@ -152,7 +155,7 @@ impl InterpreterRun<'_> {
                     match value.data {
                         ValueData::Yaml(yaml) | ValueData::InlineYaml(yaml) => match yaml {
                             Yaml::Hash(submap) => {
-                                for (key, value) in submap {
+                                for (key, value) in Rc::unwrap_or_clone(submap) {
                                     entries.insert(key, value);
                                 }
                             }
@@ -160,7 +163,6 @@ impl InterpreterRun<'_> {
                             Yaml::Real(_) | Yaml::Integer(_) | Yaml::String(_) | Yaml::Boolean(_) | Yaml::Null => {
                                 return Err(errwithloc!(value.src_loc, "cannot inline values into maps"))
                             }
-                            Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
                         },
                         ValueData::Nothing => {}
                         ValueData::Inline | ValueData::Drop => unreachable!(),
@@ -183,7 +185,7 @@ impl InterpreterRun<'_> {
             }
         }
 
-        let map = Yaml::Hash(entries);
+        let map = Yaml::Hash(Rc::new(entries));
         let data = ValueData::Yaml(map);
         let value = Value {
             src_loc: map_templ.src_loc.clone(),
@@ -197,7 +199,7 @@ impl InterpreterRun<'_> {
         for value_templ in &scalar_templ.values {
             match value_templ {
                 ScalarTemplateValue::String(substring) => {
-                    values.push(ScalarValue::String(substring));
+                    values.push(ScalarValue::Yaml(Yaml::String(substring.clone())));
                 }
                 ScalarTemplateValue::Expr(stmt) => {
                     let value = self.interpret_statement(stmt, &scalar_templ.src_loc)?;
@@ -214,7 +216,6 @@ impl InterpreterRun<'_> {
         if values.len() == 1 {
             let singular_value = &values[0];
             let data = match singular_value {
-                ScalarValue::String(string) => ValueData::Yaml(Yaml::String(string.to_string())),
                 ScalarValue::Inline => ValueData::Inline,
                 ScalarValue::Drop => ValueData::Drop,
                 ScalarValue::Yaml(yaml) => ValueData::Yaml(yaml.clone()),
@@ -229,9 +230,6 @@ impl InterpreterRun<'_> {
         let mut string = String::new();
         for value in values {
             match value {
-                ScalarValue::String(expr_string) => {
-                    string.push_str(expr_string);
-                }
                 ScalarValue::Inline => {
                     return Err(errwithloc!(
                         scalar_templ.src_loc,
@@ -258,7 +256,7 @@ impl InterpreterRun<'_> {
                 },
             }
         }
-        let data = ValueData::Yaml(Yaml::String(string));
+        let data = ValueData::Yaml(Yaml::String(Rc::new(string)));
         let value = Value {
             src_loc: scalar_templ.src_loc.clone(),
             data,
@@ -314,9 +312,9 @@ impl InterpreterRun<'_> {
         Ok(ExprValue::Yaml(value.clone()))
     }
 
-    fn query(&mut self, query: &ExprQuery, src_loc: &SourceLocationSpan) -> Result<&Yaml, Error> {
+    fn query(&mut self, query: &ExprQuery, src_loc: &SourceLocationSpan) -> Result<Yaml, Error> {
         match query {
-            ExprQuery::Root => Ok(&self.config),
+            ExprQuery::Root => Ok(self.config.clone()),
             ExprQuery::Index(objectindex) => {
                 let index = self.interpret_expr(&objectindex.index, src_loc)?;
                 let object = self.query(&objectindex.object, src_loc)?;
@@ -335,7 +333,7 @@ impl InterpreterRun<'_> {
 
                         let subvalue = object.get(&index);
                         match subvalue {
-                            Some(subvalue) => Ok(subvalue),
+                            Some(subvalue) => Ok(subvalue.clone()),
                             None => Err(errwithloc!(
                                 src_loc,
                                 "index {} not found",
@@ -358,7 +356,7 @@ impl InterpreterRun<'_> {
                         let index = usize::try_from(index)?;
                         let subvalue = list.get(index);
                         match subvalue {
-                            Some(subvalue) => Ok(subvalue),
+                            Some(subvalue) => Ok(subvalue.clone()),
                             None => Err(errwithloc!(src_loc, "index {} is out of bounds", index)),
                         }
                     }
@@ -366,7 +364,7 @@ impl InterpreterRun<'_> {
                         src_loc,
                         "cannot get index {}: value type {} is not indexable",
                         Self::expr_value_debug_string(&index),
-                        Self::yaml_type_name(object),
+                        Self::yaml_type_name(&object),
                     )),
                 }
             }
@@ -423,7 +421,6 @@ impl InterpreterRun<'_> {
                 src_loc,
                 "expression value 'drop' cannot be converted to a bool value"
             )),
-            ExprValue::Yaml(Yaml::BadValue) => unreachable!(),
             ExprValue::Yaml(Yaml::Boolean(false)) | ExprValue::Yaml(Yaml::Null) => Ok(false),
             ExprValue::Yaml(_) => Ok(true),
         }
@@ -439,14 +436,13 @@ impl InterpreterRun<'_> {
 
     fn yaml_debug_string(yaml: &Yaml) -> String {
         match yaml {
-            Yaml::Real(value) => value.clone(),
+            Yaml::Real(value) => value.as_ref().clone(),
             Yaml::Integer(value) => format!("{}", value).into(),
             Yaml::String(value) => format!("{:?}", value).into(),
             Yaml::Boolean(value) => format!("{}", value).into(),
             Yaml::Array(_) => "<list>".to_string(),
             Yaml::Hash(_) => "<map>".to_string(),
             Yaml::Null => "<null>".to_string(),
-            Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
         }
     }
 
@@ -467,7 +463,6 @@ impl InterpreterRun<'_> {
             Yaml::Array(_) => "list",
             Yaml::Hash(_) => "map",
             Yaml::Null => "null",
-            Yaml::Alias(_) | Yaml::BadValue => unreachable!(),
         }
     }
 }

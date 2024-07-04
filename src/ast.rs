@@ -48,7 +48,7 @@ pub struct ScalerTemplate {
 
 #[derive(Clone, Debug)]
 pub enum ScalarTemplateValue {
-    String(String),
+    String(Rc<String>),
     Expr(Statement),
 }
 
@@ -79,7 +79,7 @@ pub enum Expr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprString {
-    pub value: String,
+    pub value: Rc<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,7 +89,7 @@ pub struct ExprInteger {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprReal {
-    pub value: String,
+    pub value: Rc<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::ops::Range;
+use std::{ops::Range, rc::Rc};
 
 use anyhow::{anyhow, Error};
 use chumsky::{prelude::*, Stream};
@@ -56,9 +56,9 @@ impl TemplateExprParser {
 fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usize>), Error = Simple<Token>> {
     let expr = recursive(|expr| {
         let value = select! {
-            Token::String(value) => Expr::String(ExprString{value}),
+            Token::String(value) => Expr::String(ExprString{value: Rc::new(value)}),
             Token::Integer(value) => Expr::Integer(ExprInteger{value}),
-            Token::Real(value) => Expr::Real(ExprReal{value}),
+            Token::Real(value) => Expr::Real(ExprReal{value: Rc::new(value)}),
             Token::Ident(ident) if ident == "inline" => Expr::Inline,
             Token::Ident(ident) if ident == "drop" => Expr::Drop,
             Token::Ident(ident) if ident == "true" => Expr::True,
@@ -74,7 +74,7 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
             Index(Expr),
         }
 
-        let subquery_ident = ident.map(|index| SubQuery::Index(Expr::String(ExprString { value: index })));
+        let subquery_ident = ident.map(|index| SubQuery::Index(Expr::String(ExprString { value: Rc::new(index) })));
 
         let subquery_index = expr
             .delimited_by(just(Token::LBracket), just(Token::RBracket))

@@ -1,11 +1,13 @@
 // Copyright (c) Chris Gunn.
 // Licensed under the MIT license.
 
-use std::path::Path;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
-use yaml_rust::yaml::Hash;
-
-use crate::yaml_utils::{yaml_emit_to_file, yaml_load_from_file};
+use linked_hash_map::LinkedHashMap;
 
 use super::*;
 
@@ -77,22 +79,26 @@ fn run_test(name: &str) {
 
     let mut tests_data_docs = yaml_load_from_file(&tests_data_file).unwrap();
     let tests_data_doc = as_hash_mut(&mut tests_data_docs[0]).unwrap();
-    let tests = as_hash_mut(&mut tests_data_doc[&Yaml::String("tests".to_string())]).unwrap();
-    let test_data = as_hash_mut(&mut tests[&Yaml::String(name.to_string())]).unwrap();
+    let tests = as_hash_mut(&mut tests_data_doc[&to_yaml_string("tests")]).unwrap();
+    let test_data = as_hash_mut(&mut tests[&to_yaml_string(name)]).unwrap();
 
-    let template = test_data[&Yaml::String("template".to_string())].as_str().unwrap();
-    let config = test_data.get(&Yaml::String("config".to_string()));
+    let template = &test_data[&to_yaml_string("template")];
+    let Yaml::String(template) = template else {
+        panic!("test 'template' value should be a string")
+    };
+    let config = test_data.get(&to_yaml_string("config"));
     let config = match config {
-        Some(yaml) => yaml.as_str().unwrap(),
+        Some(Yaml::String(value)) => value.as_ref().as_str(),
         None => "",
+        Some(_) => panic!("test 'config' value should be a string"),
     };
 
-    let expected = test_data[&Yaml::String("expected".to_string())].clone();
+    let expected = test_data[&to_yaml_string("expected")].clone();
 
     let result = process_yaml_template(name, template, config);
     let actual = format_result(result);
 
-    test_data.insert(Yaml::String("expected".to_string()), actual.clone());
+    test_data.insert(to_yaml_string("expected"), actual.clone());
     yaml_emit_to_file(&tests_data_docs, &actual_data_file).unwrap();
 
     assert_eq!(expected, actual);
@@ -100,21 +106,37 @@ fn run_test(name: &str) {
 
 fn format_result(result: Result<Vec<Yaml>, Error>) -> Yaml {
     let (err, output) = match result {
-        Ok(docs) => (Yaml::Null, Yaml::Array(docs)),
-        Err(err) => (Yaml::String(format!("{:#}", err)), Yaml::Null),
+        Ok(docs) => (Yaml::Null, Yaml::Array(Rc::new(docs))),
+        Err(err) => (Yaml::String(Rc::new(format!("{:#}", err))), Yaml::Null),
     };
 
-    let mut result = Hash::new();
-    result.insert(Yaml::String("error".to_string()), err);
-    result.insert(Yaml::String("output".to_string()), output);
+    let mut result = LinkedHashMap::new();
+    result.insert(to_yaml_string("error"), err);
+    result.insert(to_yaml_string("output"), output);
 
-    let result = Yaml::Hash(result);
+    let result = Yaml::Hash(Rc::new(result));
     result
 }
 
-fn as_hash_mut(yaml: &mut Yaml) -> Option<&mut Hash> {
+fn as_hash_mut(yaml: &mut Yaml) -> Option<&mut LinkedHashMap<Yaml, Yaml>> {
     match yaml {
-        Yaml::Hash(hash) => Some(hash),
+        Yaml::Hash(hash) => Some(Rc::get_mut(hash).unwrap()),
         _ => None,
     }
+}
+
+fn to_yaml_string(value: &str) -> Yaml {
+    Yaml::String(Rc::new(value.to_string()))
+}
+
+fn yaml_emit_to_file(docs: &Vec<Yaml>, filename: &PathBuf) -> Result<(), Error> {
+    let out = yaml_emit_to_string(docs)?;
+    fs::write(filename, out)?;
+    Ok(())
+}
+
+fn yaml_load_from_file(filename: &PathBuf) -> Result<Vec<Yaml>, Error> {
+    let tests_data_str = fs::read_to_string(&filename)?;
+    let tests_data_docs = parse_yaml_str(&tests_data_str)?;
+    Ok(tests_data_docs)
 }

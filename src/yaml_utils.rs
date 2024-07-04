@@ -1,32 +1,63 @@
 // Copyright (c) Chris Gunn.
 // Licensed under the MIT license.
 
-use std::{
-    fs::{self, File},
-    io::BufWriter,
-    path::PathBuf,
-};
+use std::rc::Rc;
 
 use anyhow::Error;
-use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
+use linked_hash_map::LinkedHashMap;
+use yaml_rust::YamlEmitter;
+
+use crate::cow_yaml::Yaml;
 
 pub fn yaml_emit_to_string(docs: &Vec<Yaml>) -> Result<String, Error> {
+    let docs = docs_to_yaml_rust_type(docs);
+
     let mut out_str = String::new();
     let mut emitter = YamlEmitter::new(&mut out_str);
     for doc in docs {
-        emitter.dump(doc)?;
+        emitter.dump(&doc)?;
     }
     Ok(out_str)
 }
 
-pub fn yaml_emit_to_file(docs: &Vec<Yaml>, filename: &PathBuf) -> Result<(), Error> {
-    let out = yaml_emit_to_string(docs)?;
-    fs::write(filename, out)?;
-    Ok(())
+pub fn docs_to_yaml_rust_type(docs: &Vec<Yaml>) -> Vec<yaml_rust::Yaml> {
+    let mut res = Vec::new();
+    for doc in docs {
+        let doc_res = to_yaml_rust_type(doc);
+        res.push(doc_res);
+    }
+    res
 }
 
-pub fn yaml_load_from_file(filename: &PathBuf) -> Result<Vec<Yaml>, Error> {
-    let tests_data_str = fs::read_to_string(&filename).unwrap();
-    let tests_data_docs = YamlLoader::load_from_str(&tests_data_str).unwrap();
-    Ok(tests_data_docs)
+pub fn to_yaml_rust_type(docs: &Yaml) -> yaml_rust::Yaml {
+    match docs {
+        Yaml::Real(value) => yaml_rust::Yaml::Real(value.as_ref().clone()),
+        Yaml::Integer(value) => yaml_rust::Yaml::Integer(*value),
+        Yaml::String(value) => yaml_rust::Yaml::Real(value.as_ref().clone()),
+        Yaml::Boolean(value) => yaml_rust::Yaml::Boolean(*value),
+        Yaml::Array(value) => list_to_yaml_rust_type(value),
+        Yaml::Hash(value) => map_to_yaml_rust_type(value),
+        Yaml::Null => yaml_rust::Yaml::Null,
+    }
+}
+
+fn list_to_yaml_rust_type(list: &Rc<Vec<Yaml>>) -> yaml_rust::Yaml {
+    let mut res = Vec::new();
+    for node in list.as_ref() {
+        let node_res = to_yaml_rust_type(node);
+        res.push(node_res);
+    }
+    let res = yaml_rust::Yaml::Array(res);
+    res
+}
+
+fn map_to_yaml_rust_type(list: &Rc<LinkedHashMap<Yaml, Yaml>>) -> yaml_rust::Yaml {
+    let mut res = LinkedHashMap::new();
+    for (key, value) in list.as_ref() {
+        let key_res = to_yaml_rust_type(key);
+        let value_res = to_yaml_rust_type(value);
+        res.insert(key_res, value_res);
+    }
+    let res = yaml_rust::Yaml::Hash(res);
+    res
 }
