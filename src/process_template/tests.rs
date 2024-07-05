@@ -72,6 +72,8 @@ testlist! {
     arg_var_missing,
     arg_var_if,
     arg_var_query,
+    for_loop_list,
+    for_loop_map,
 }
 
 fn run_test(name: &str) {
@@ -100,12 +102,14 @@ fn run_test(name: &str) {
     let variables = match varargs {
         Some(Yaml::Hash(varargs)) => {
             let mut variables = HashMap::new();
-            for (key, value)in varargs.as_ref() {
-                let Yaml::String(key) = key else { panic!("variable name is not a string") };
+            for (key, value) in varargs.as_ref() {
+                let Yaml::String(key) = key else {
+                    panic!("variable name is not a string")
+                };
                 variables.insert(key.as_ref().clone(), value.clone());
             }
             variables
-        },
+        }
         None => HashMap::new(),
         Some(_) => panic!("test 'args' value should be a map"),
     };

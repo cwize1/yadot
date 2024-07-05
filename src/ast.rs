@@ -56,11 +56,18 @@ pub enum ScalarTemplateValue {
 pub enum Statement {
     Expr(Expr),
     If(StatementIf),
+    For(StatementFor),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatementIf {
     pub condition: Expr,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StatementFor {
+    pub bindings: Vec<ExprBinding>,
+    pub iterable: Expr,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,6 +116,11 @@ pub struct ExprOpBinary {
 pub struct ExprIndex {
     pub object: Box<ExprQuery>,
     pub index: Box<Expr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExprBinding {
+    Var(Rc<String>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -24,6 +24,7 @@ pub enum Token {
     Integer(i64),
     Real(String),
     Variable(String),
+    Comma,
 }
 
 impl std::fmt::Display for Token {
@@ -41,6 +42,7 @@ impl std::fmt::Display for Token {
             Token::Integer(i) => write!(f, "{}", i),
             Token::Real(string) => f.write_str(string),
             Token::Variable(name) => write!(f, "${}", name),
+            Token::Comma => f.write_str(","),
         }
     }
 }
@@ -112,8 +114,9 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
             _ => Err(Simple::custom(span, format!("unknown operator {}", s))),
         });
 
-    let ctrl = one_of(".[]").map(|c| match c {
+    let ctrl = one_of(".,[]").map(|c| match c {
         '.' => Token::Dot,
+        ',' => Token::Comma,
         '[' => Token::LBracket,
         ']' => Token::RBracket,
         _ => unreachable!(),

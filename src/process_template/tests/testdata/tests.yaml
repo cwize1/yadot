@@ -544,3 +544,38 @@ tests:
       error:
       output:
       - d
+
+  for_loop_list:
+    template: |
+      ${{ for $item in .list }}:
+      - ${{ $item }}
+
+    config: |
+      list:
+      - a
+      - b
+      - c
+
+    expected:
+      error:
+      output:
+      - - a
+        - b
+        - c
+
+  for_loop_map:
+    template: |
+      ${{ for $key, $value in . }}:
+        ${{ $key }}: ${{ $value }}
+
+    config: |
+      name: Cleopatra
+      species: cat
+      occupation: sleeping
+
+    expected:
+      error:
+      output:
+      - name: Cleopatra
+        species: cat
+        occupation: sleeping

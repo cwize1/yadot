@@ -9,7 +9,10 @@ use std::{ops::Range, rc::Rc};
 use anyhow::{anyhow, Error};
 use chumsky::{prelude::*, Stream};
 
-use crate::ast::{Expr, ExprIndex, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, Statement, StatementIf};
+use crate::ast::{
+    Expr, ExprBinding, ExprIndex, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, Statement, StatementFor,
+    StatementIf,
+};
 
 use super::lexer::{gen_lexer, Token};
 
@@ -54,7 +57,9 @@ impl TemplateExprParser {
 }
 
 fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usize>), Error = Simple<Token>> {
-    let expr = recursive(|expr| {
+    let var = select! {Token::Variable(name) => name}.labelled("variable");
+
+    let expr = recursive(move |expr| {
         let value = select! {
             Token::String(value) => Expr::String(ExprString{value: Rc::new(value)}),
             Token::Integer(value) => Expr::Integer(ExprInteger{value}),
@@ -66,11 +71,11 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
         }
         .labelled("value");
 
-        let ident = select!{Token::Ident(name) => name}.labelled("identifier");
+        let ident = select! {Token::Ident(name) => name}.labelled("identifier");
 
         let query_root = just(Token::Dot).to(ExprQuery::Root).labelled("root");
 
-        let query_var = select!{Token::Variable(name) => ExprQuery::Var(Rc::new(name))}.labelled("variable");
+        let query_var = var.map(|name| ExprQuery::Var(Rc::new(name)));
 
         enum SubQuery {
             Index(Expr),
@@ -125,13 +130,27 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
         compare
     });
 
+    let var_binding = var.map(|name| ExprBinding::Var(Rc::new(name)));
+
+    let binding = var_binding;
+
+    let bindings = binding
+        .clone()
+        .chain(just(Token::Comma).ignore_then(binding).repeated());
+
     let if_statment = just(Token::Ident("if".to_string()))
         .ignore_then(expr.clone())
         .map(|condition| Statement::If(StatementIf { condition }));
 
+    let for_statement = just(Token::Ident("for".to_string()))
+        .ignore_then(bindings)
+        .then_ignore(just(Token::Ident("in".to_string())))
+        .then(expr.clone())
+        .map(|(bindings, iterable)| Statement::For(StatementFor { bindings, iterable }));
+
     let expr_statement = expr.map(|expr| Statement::Expr(expr));
 
-    let statement = if_statment.or(expr_statement);
+    let statement = if_statment.or(for_statement).or(expr_statement);
 
     let templ_expr = just(Token::Start)
         .ignore_then(statement)

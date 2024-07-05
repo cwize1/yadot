@@ -74,6 +74,7 @@ fn fomat_statement(string: &mut String, statement: &Statement) {
     match statement {
         Statement::Expr(expr) => fomat_expr(string, expr),
         Statement::If(statement) => fomat_if(string, statement),
+        Statement::For(statement) => fomat_for(string, statement),
     }
 }
 
@@ -81,6 +82,28 @@ fn fomat_if(string: &mut String, statement: &StatementIf) {
     string.push_str("if (");
     fomat_expr(string, &statement.condition);
     string.push_str("if )");
+}
+
+fn fomat_for(string: &mut String, statement: &StatementFor) {
+    string.push_str("for ");
+    for (i, binding) in statement.bindings.iter().enumerate() {
+        if i > 0 {
+            string.push_str(", ");
+        }
+        string.push_str("(");
+        fomat_binding(string, binding);
+        string.push_str(")");
+    }
+
+    string.push_str(" in (");
+    fomat_expr(string, &statement.iterable);
+    string.push_str(")");
+}
+
+fn fomat_binding(string: &mut String, binding: &ExprBinding) {
+    match binding {
+        ExprBinding::Var(name) => string.push_str(&format!("${}", name.as_ref().as_str())),
+    }
 }
 
 fn fomat_expr(string: &mut String, expr: &Expr) {
