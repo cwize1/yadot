@@ -68,6 +68,10 @@ testlist! {
     string_eq_itself,
     string_eq_config_var,
     if_config_var,
+    arg_var_simple,
+    arg_var_missing,
+    arg_var_if,
+    arg_var_query,
 }
 
 fn run_test(name: &str) {
@@ -92,10 +96,23 @@ fn run_test(name: &str) {
         None => "",
         Some(_) => panic!("test 'config' value should be a string"),
     };
+    let varargs = test_data.get(&to_yaml_string("args"));
+    let variables = match varargs {
+        Some(Yaml::Hash(varargs)) => {
+            let mut variables = HashMap::new();
+            for (key, value)in varargs.as_ref() {
+                let Yaml::String(key) = key else { panic!("variable name is not a string") };
+                variables.insert(key.as_ref().clone(), value.clone());
+            }
+            variables
+        },
+        None => HashMap::new(),
+        Some(_) => panic!("test 'args' value should be a map"),
+    };
 
     let expected = test_data[&to_yaml_string("expected")].clone();
 
-    let result = process_yaml_template(name, template, config);
+    let result = process_yaml_template(name, template, config, variables);
     let actual = format_result(result);
 
     test_data.insert(to_yaml_string("expected"), actual.clone());

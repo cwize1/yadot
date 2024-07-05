@@ -23,22 +23,24 @@ pub enum Token {
     RBracket,
     Integer(i64),
     Real(String),
+    Variable(String),
 }
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Token::Start => write!(f, "${{"),
-            Token::End => write!(f, "$}}"),
+            Token::Start => f.write_str("${{"),
+            Token::End => f.write_str("}}"),
             Token::String(value) => write!(f, "{:?}", value),
-            Token::Ident(name) => write!(f, "{}", name),
-            Token::Dot => write!(f, "."),
-            Token::Eq => write!(f, "=="),
-            Token::Ne => write!(f, "!="),
-            Token::LBracket => write!(f, "["),
-            Token::RBracket => write!(f, "]"),
+            Token::Ident(name) => f.write_str(name),
+            Token::Dot => f.write_str("."),
+            Token::Eq => f.write_str("=="),
+            Token::Ne => f.write_str("!="),
+            Token::LBracket => f.write_str("["),
+            Token::RBracket => f.write_str("]"),
             Token::Integer(i) => write!(f, "{}", i),
-            Token::Real(string) => write!(f, "{}", string),
+            Token::Real(string) => f.write_str(string),
+            Token::Variable(name) => write!(f, "${}", name),
         }
     }
 }
@@ -98,6 +100,8 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
 
     let ident = text::ident().map(|ident| Token::Ident(ident));
 
+    let variable = just("$").ignore_then(text::ident()).map(|name| Token::Variable(name));
+
     let op = one_of("!=")
         .repeated()
         .at_least(1)
@@ -115,7 +119,14 @@ pub fn gen_lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simp
         _ => unreachable!(),
     });
 
-    let token = start.or(end).or(string).or(number).or(ident).or(ctrl).or(op);
+    let token = start
+        .or(end)
+        .or(string)
+        .or(number)
+        .or(variable)
+        .or(ident)
+        .or(ctrl)
+        .or(op);
 
     let token = token.map_with_span(|tok, span| (tok, span)).padded().repeated();
     token

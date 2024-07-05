@@ -1,21 +1,27 @@
 // Copyright (c) Chris Gunn.
 // Licensed under the MIT license.
 
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use anyhow::{anyhow, Error};
 use hashlink::LinkedHashMap;
 
 use crate::{
     ast::{
-        Expr, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, FileTemplate, MapTemplate, NodeTemplate,
-        ScalarTemplateValue, ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement, StatementIf,
+        Expr, ExprIndex, ExprInteger, ExprOpBinary, ExprQuery, ExprReal, ExprString, FileTemplate, MapTemplate,
+        NodeTemplate, ScalarTemplateValue, ScalerTemplate, SequenceTemplate, SourceLocationSpan, Statement,
+        StatementIf,
     },
     cow_yaml::Yaml,
 };
 
 pub struct InterpreterRun {
     config: Yaml,
+    scopes: Vec<Scope>,
+}
+
+struct Scope {
+    pub variables: HashMap<String, Yaml>,
 }
 
 struct Value {
@@ -51,8 +57,11 @@ macro_rules! errwithloc {
 }
 
 impl InterpreterRun {
-    pub fn new(config: Yaml) -> InterpreterRun {
-        InterpreterRun { config }
+    pub fn new(config: Yaml, variables: HashMap<String, Yaml>) -> InterpreterRun {
+        InterpreterRun {
+            config,
+            scopes: vec![Scope { variables }],
+        }
     }
 
     pub fn interpret_file(&mut self, file_templ: &FileTemplate) -> Result<Vec<Yaml>, Error> {
@@ -315,59 +324,72 @@ impl InterpreterRun {
     fn query(&mut self, query: &ExprQuery, src_loc: &SourceLocationSpan) -> Result<Yaml, Error> {
         match query {
             ExprQuery::Root => Ok(self.config.clone()),
-            ExprQuery::Index(objectindex) => {
-                let index = self.interpret_expr(&objectindex.index, src_loc)?;
-                let object = self.query(&objectindex.object, src_loc)?;
-                match object {
-                    Yaml::Hash(object) => {
-                        let index = match index {
-                            ExprValue::Yaml(yaml @ Yaml::String(_)) => yaml,
-                            _ => {
-                                return Err(errwithloc!(
-                                    src_loc,
-                                    "value of type {} cannot be used to index into a map",
-                                    Self::exp_value_type_name(&index),
-                                ))
-                            }
-                        };
+            ExprQuery::Var(name) => self.query_var(name, src_loc),
+            ExprQuery::Index(objectindex) => self.query_index(objectindex, src_loc),
+        }
+    }
 
-                        let subvalue = object.get(&index);
-                        match subvalue {
-                            Some(subvalue) => Ok(subvalue.clone()),
-                            None => Err(errwithloc!(
-                                src_loc,
-                                "index {} not found",
-                                Self::yaml_debug_string(&index),
-                            )),
-                        }
-                    }
-                    Yaml::Array(list) => {
-                        let index = match index {
-                            ExprValue::Yaml(Yaml::Integer(index)) => index,
-                            _ => {
-                                return Err(errwithloc!(
-                                    src_loc,
-                                    "value of type {} cannot be used to index into a list",
-                                    Self::exp_value_type_name(&index),
-                                ))
-                            }
-                        };
+    fn query_var(&mut self, name: &str, src_loc: &SourceLocationSpan) -> Result<Yaml, Error> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(value) = scope.variables.get(name) {
+                return Ok(value.clone());
+            }
+        }
 
-                        let index = usize::try_from(index)?;
-                        let subvalue = list.get(index);
-                        match subvalue {
-                            Some(subvalue) => Ok(subvalue.clone()),
-                            None => Err(errwithloc!(src_loc, "index {} is out of bounds", index)),
-                        }
+        Err(errwithloc!(src_loc, "cannot find variable '{}'", name))
+    }
+
+    fn query_index(&mut self, objectindex: &ExprIndex, src_loc: &SourceLocationSpan) -> Result<Yaml, Error> {
+        let index = self.interpret_expr(&objectindex.index, src_loc)?;
+        let object = self.query(&objectindex.object, src_loc)?;
+        match object {
+            Yaml::Hash(object) => {
+                let index = match index {
+                    ExprValue::Yaml(yaml @ Yaml::String(_)) => yaml,
+                    _ => {
+                        return Err(errwithloc!(
+                            src_loc,
+                            "value of type {} cannot be used to index into a map",
+                            Self::exp_value_type_name(&index),
+                        ))
                     }
-                    _ => Err(errwithloc!(
+                };
+
+                let subvalue = object.get(&index);
+                match subvalue {
+                    Some(subvalue) => Ok(subvalue.clone()),
+                    None => Err(errwithloc!(
                         src_loc,
-                        "cannot get index {}: value type {} is not indexable",
-                        Self::expr_value_debug_string(&index),
-                        Self::yaml_type_name(&object),
+                        "index {} not found",
+                        Self::yaml_debug_string(&index),
                     )),
                 }
             }
+            Yaml::Array(list) => {
+                let index = match index {
+                    ExprValue::Yaml(Yaml::Integer(index)) => index,
+                    _ => {
+                        return Err(errwithloc!(
+                            src_loc,
+                            "value of type {} cannot be used to index into a list",
+                            Self::exp_value_type_name(&index),
+                        ))
+                    }
+                };
+
+                let index = usize::try_from(index)?;
+                let subvalue = list.get(index);
+                match subvalue {
+                    Some(subvalue) => Ok(subvalue.clone()),
+                    None => Err(errwithloc!(src_loc, "index {} is out of bounds", index)),
+                }
+            }
+            _ => Err(errwithloc!(
+                src_loc,
+                "cannot get index {}: value type {} is not indexable",
+                Self::expr_value_debug_string(&index),
+                Self::yaml_type_name(&object),
+            )),
         }
     }
 

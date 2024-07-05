@@ -66,9 +66,11 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
         }
         .labelled("value");
 
-        let ident = select! { Token::Ident(name) => name}.labelled("identifier");
+        let ident = select!{Token::Ident(name) => name}.labelled("identifier");
 
-        let query_root = just(Token::Dot).to(ExprQuery::Root);
+        let query_root = just(Token::Dot).to(ExprQuery::Root).labelled("root");
+
+        let query_var = select!{Token::Variable(name) => ExprQuery::Var(Rc::new(name))}.labelled("variable");
 
         enum SubQuery {
             Index(Expr),
@@ -89,10 +91,13 @@ fn gen_template_expression_parser() -> impl Parser<Token, (Statement, Range<usiz
             }),
         };
 
-        let query = query_root
+        let query_root_child = query_root
             .clone()
             .then(subquery.clone())
-            .map(move |(object, index)| subquery_fold(object, index))
+            .map(move |(object, index)| subquery_fold(object, index));
+
+        let query = query_root_child
+            .or(query_var)
             .then(just(Token::Dot).ignore_then(subquery).repeated())
             .foldl(subquery_fold);
 

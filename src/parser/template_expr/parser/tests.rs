@@ -109,6 +109,7 @@ fn fomat_expr_query(string: &mut String, query: &ExprQuery) {
             fomat_expr(string, index);
             string.push_str("]");
         }
+        ExprQuery::Var(name) => string.push_str(&format!("${}", name.as_ref().as_str())),
     }
 }
 

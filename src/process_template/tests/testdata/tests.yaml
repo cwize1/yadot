@@ -494,3 +494,53 @@ tests:
       error:
       output:
       - sound: meow
+
+  arg_var_simple:
+    template: |
+      ${{ $a }}
+
+    args:
+      a: Hello, World
+
+    expected:
+      error:
+      output:
+      - Hello, World
+
+  arg_var_missing:
+    template: |
+      ${{ $b }}
+
+    args:
+      a: Hello, World
+
+    expected:
+      error: arg_var_missing:1:1 cannot find variable 'b'
+      output:
+
+  arg_var_if:
+    template: |
+      ${{ if $a }}:
+        It works!
+
+    args:
+      a: true
+
+    expected:
+      error:
+      output:
+      - It works!
+
+  arg_var_query:
+    template: |
+      ${{ $a.b.c }}
+
+    args:
+      a:
+        b:
+          c: d
+
+    expected:
+      error:
+      output:
+      - d

@@ -95,6 +95,7 @@ pub struct ExprReal {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprQuery {
     Root,
+    Var(Rc<String>),
     Index(ExprIndex),
 }
 
