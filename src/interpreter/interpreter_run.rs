@@ -231,38 +231,24 @@ impl InterpreterRun {
         value_for: ValueFor,
         item_templ: &NodeTemplate,
     ) -> Result<Value, Error> {
-        let mut combined_list = None;
-        let mut combined_map = None;
+        let mut combined_list = Vec::new();
+        let mut combined_map = LinkedHashMap::<Yaml, Yaml>::new();
 
-        let mut handle_item = |item| -> Result<(), Error> {
+        let mut add_item = |item| -> Result<(), Error> {
             let item = Self::expect_value(item)?;
-            match item.data {
+            match &item.data {
                 ValueData::Yaml(yaml) | ValueData::InlineYaml(yaml) => match yaml {
                     Yaml::Array(lower_list) => {
-                        if let Some(_) = combined_map {
-                            return Err(errwithloc!(item.src_loc, "cannot combine list item into map"));
+                        if combined_map.len() > 0 {
+                            return Err(errwithloc!(item.src_loc, "cannot combine list item with map item(s)"));
                         }
 
-                        if let None = combined_list {
-                            combined_list = Some(Vec::new());
-                        }
-
-                        let combined_list = combined_list.as_mut().unwrap();
-
-                        for item in lower_list.as_ref() {
-                            combined_list.push(item.clone());
-                        }
+                        combined_list.extend_from_slice(lower_list.as_ref());
                     }
                     Yaml::Hash(lower_map) => {
-                        if let Some(_) = combined_list {
-                            return Err(errwithloc!(item.src_loc, "cannot combine map item into list"));
+                        if combined_list.len() > 0 {
+                            return Err(errwithloc!(item.src_loc, "cannot combine map item with list item(s)"));
                         }
-
-                        if let None = combined_map {
-                            combined_map = Some(LinkedHashMap::new());
-                        }
-
-                        let combined_map = combined_map.as_mut().unwrap();
 
                         for (key, value) in lower_map.as_ref() {
                             combined_map.insert(key.clone(), value.clone());
@@ -271,15 +257,15 @@ impl InterpreterRun {
                     _ => {
                         return Err(errwithloc!(
                             item.src_loc,
-                            "for loop child item must be either an array or a map"
+                            "for loop child item must be either an array or a map, but is a {}",
+                            Self::yaml_type_name(&yaml)
                         ))
                     }
-                },
-                ValueData::Nothing => {}
+                }
+                ValueData::Nothing => {},
                 // Checked by expect_value().
                 _ => unreachable!(),
             }
-
             Ok(())
         };
 
@@ -301,7 +287,7 @@ impl InterpreterRun {
 
                     self.pop_scope();
 
-                    handle_item(item)?;
+                    add_item(item)?;
                 }
             }
             Yaml::Hash(map) => {
@@ -323,7 +309,7 @@ impl InterpreterRun {
 
                     self.pop_scope();
 
-                    handle_item(item)?;
+                    add_item(item)?;
                 }
             }
             // Check by expect_iterable() in interpret_for().
@@ -332,12 +318,12 @@ impl InterpreterRun {
 
         let mut data = ValueData::Nothing;
 
-        if let Some(combined_list) = combined_list {
+        if !combined_list.is_empty() {
             let list = Yaml::Array(Rc::new(combined_list));
             data = ValueData::Yaml(list);
         }
 
-        if let Some(combined_map) = combined_map {
+        if !combined_map.is_empty() {
             let map = Yaml::Hash(Rc::new(combined_map));
             data = ValueData::Yaml(map);
         }
